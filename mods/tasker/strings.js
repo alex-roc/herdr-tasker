@@ -1,0 +1,183 @@
+// Every word the person reads. Translate this file to localize tasker.
+
+export const S = {
+  appName: "Tasker",
+
+  // Views and sections
+  now: "Now",
+  projects: "Projects",
+  needsYou: "Needs you",
+  toReview: "To review",
+  working: "Working",
+  nextUp: "Up next",
+  stalled: "Stalled",
+  inbox: "Inbox",
+  more: (n) => `${n} more`,
+  noProject: "No project",
+  notOpen: "not open",
+  emptyNow: "Nothing needs you. Press n for a new task, or open Projects to see your repositories.",
+  emptyProjects: "No projects yet. Add one with the folder button above, or start a task in any repository.",
+  noTaskSelected: "Select a task to see its agents, changes and history.",
+  loading: "Loading…",
+  noMatch: (q) => `No task matches "${q}".`,
+  noTasks: "No tasks yet. Press n in the list to add one.",
+
+  // Header buttons (tooltips)
+  showDone: "Show done tasks",
+  hideDone: "Hide done tasks",
+  newProject: "New project",
+  editProject: "Edit project",
+  openBoard: "Board (cmd-shift-b)",
+  searchTasks: "Find a task… (/)",
+  newTask: "New task (n)",
+  settings: "Settings",
+
+  // Rows
+  terminal: "Terminal",
+  makeTask: "Make task",
+  makeTaskHint: "Turn this tab into a task, so its agent's work is tracked",
+  startHint: "Start an agent on this task",
+  branchHint: (b) => `On branch ${b}`,
+  aheadHint: (n) => `${n} commit${n === 1 ? "" : "s"} not pushed`,
+  dirtyHint: (n) => `${n} uncommitted change${n === 1 ? "" : "s"}`,
+  notOpenHint: "No space is open in this repository",
+
+  // Repository menu
+  newTerminal: "New terminal here",
+  newAgent: (name) => `New ${name} here`,
+  repoMenu: "More",
+  importIssues: "Import GitHub issues",
+  moveToProject: "Project",
+  noProjectShort: "None",
+
+  // Task actions
+  start: "Start agent",
+  startWorktree: "Start in a worktree",
+  startWorktreeHint: "Creates branch task/<name> in its own checkout first",
+  focusAgent: "Go to agent",
+  showChanges: "Show changes",
+  markDone: "Mark done",
+  sendFeedback: "Send",
+  feedbackTitle: "Message the agent",
+  feedbackPlaceholder: "Feedback or the next instruction…",
+  askPR: "Ask for a pull request",
+  sendFailedChecks: "Send failed checks",
+  archive: "Archive",
+  archiveTitle: (title) => `Archive "${title}"?`,
+  archiveBody: "Marks it done and puts its tabs away. They keep running; you can bring them back from the tab bar.",
+  archiveBodyWorktree: (path, branch) => `Marks it done and puts its tabs away. Its worktree ${path} can go too; the branch ${branch} is kept if it has commits not merged yet.`,
+  archiveAndRemove: "Archive and remove worktree",
+  remove: "Delete",
+  deleteTitle: (title) => `Delete "${title}"?`,
+  deleteBody: "The task leaves every list. Its tabs and agents keep running.",
+  edit: "Edit",
+  editTask: "Edit task",
+  newTaskTitle: "New task",
+  save: "Save",
+  cancel: "Cancel",
+  close: "Close",
+
+  // Task form
+  title: "Title",
+  titlePlaceholder: "What needs to happen?",
+  project: "Project",
+  repo: "Repository",
+  status: "Status",
+  priority: "Priority",
+  due: "Due",
+  duePlaceholder: "fri, +3d, 2026-11-20",
+  dueBad: "Try today, tomorrow, fri, +3d or 2026-11-20",
+  estimate: "Estimate",
+  estimatePlaceholder: "2h",
+  nextStep: "Next step",
+  nextStepPlaceholder: "The very next action",
+  notes: "Notes",
+  none: "—",
+
+  // Project form
+  name: "Name",
+  namePlaceholder: "Project name",
+  color: "Color",
+  repos: "Repositories",
+  reposHint: "Repositories open in Herdr. Tick the ones that belong to this project.",
+  inProject: (name) => `in ${name}`,
+
+  // Settings
+  settingsTitle: "Tasker settings",
+  wipLimit: "Doing limit",
+  wipLimitHint: "How many tasks can be in Doing before the status bar warns you.",
+  staleDays: "Stalled after",
+  staleDaysHint: "Days without movement before a Doing or Waiting task shows as stalled.",
+  days: (n) => `${n} day${n === 1 ? "" : "s"}`,
+  defaultAgent: "Agent to start",
+  defaultAgentHint: "Started by Start agent, with the task as its first message.",
+  notInstalled: "not installed",
+
+  // Detail
+  task: "Task",
+  agents: "Agents",
+  screen: "Screen",
+  changes: "Changes",
+  activity: "Activity",
+  time: "Time",
+  files: (n) => `${n} file${n === 1 ? "" : "s"}`,
+  checksFailedChip: (n) => `${n} check${n === 1 ? "" : "s"} failed`,
+  checksRunning: (n) => `${n} check${n === 1 ? "" : "s"} running`,
+  checksPassed: "checks passed",
+  inStateFor: (state, d) => `${state} for ${d}`,
+  createdAgo: (d) => `created ${d} ago`,
+  agentWorked: (d) => `agents worked ${d}`,
+  ago: (d) => `${d} ago`,
+  estimateChip: (e) => `est. ${e}`,
+  turn: (n) => `turn ${n}`,
+  // How long an agent has been in its state.
+  agentFor: { working: (d) => `working ${d}`, blocked: (d) => `waiting ${d}`, done: (d) => `finished ${d} ago`, idle: (d) => `idle ${d}` },
+  ctx: (k) => `ctx ${k}`,
+
+  // Status bar
+  doneToday: (n) => `${n} done today`,
+  doingCount: (n, max) => `Doing ${n}/${max}`,
+  doingOver: (n, max) => `Doing ${n}/${max}: finish something first`,
+  needCount: (n) => `${n} need${n === 1 ? "s" : ""} you`,
+  workingCount: (n) => `${n} working`,
+  openCount: (n) => `${n} open`,
+
+  // Board
+  board: "Board",
+  allProjects: "All",
+  boardHint: "Drag a card to change its status · click to open · right-click for more",
+  emptyColumn: "Nothing here",
+
+  // Issues
+  issuesTitle: (repo) => `Import issues · ${repo}`,
+  noIssues: "No open issues left to import.",
+  importN: (n) => (n ? `Import ${n}` : "Import"),
+
+  // Errors and notices
+  storeBusy: "Couldn't save tasks.json: it kept changing. Try again.",
+  storeBad: (why) => `tasks.json can't be read (${why}). Fix it by hand; tasker won't write over it.`,
+  launchFailed: "Couldn't start the agent",
+  keptBranch: (b) => `Kept branch ${b}: it has commits not merged yet.`,
+
+  // What an agent gets
+  prompt: (task) => [
+    task.title,
+    task.next_step ? `Next step: ${task.next_step}` : "",
+    task.notes ? `Notes:\n${task.notes}` : "",
+    task.issue ? `GitHub issue #${task.issue.number}: ${task.issue.url}${task.issue.body ? `\n\n${task.issue.body}` : ""}` : "",
+  ].filter(Boolean).join("\n\n"),
+  prRequest: "Please commit your work, push the branch and open a pull request with gh. Summarize what changed and how it was tested.",
+  checksFailed: (names) => `These CI checks failed: ${names.join(", ")}. Please look at them and fix the failures.`,
+
+  statusLabel: {
+    inbox: "Inbox",
+    next: "Next",
+    doing: "Doing",
+    waiting: "Waiting",
+    review: "Review",
+    done: "Done",
+    dropped: "Dropped",
+  },
+  priorityLabel: { 1: "P1", 2: "P2", 3: "P3" },
+  priorityHint: { 1: "High", 2: "Normal", 3: "Low" },
+};

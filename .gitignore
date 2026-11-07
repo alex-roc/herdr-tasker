@@ -1,0 +1,5 @@
+.DS_Store
+node_modules/
+# Written by herdr-app check / gpui-shell types
+**/jsconfig.json
+**/*.d.ts

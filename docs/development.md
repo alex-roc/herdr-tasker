@@ -1,0 +1,90 @@
+# Developing tasker
+
+## The loop
+
+```sh
+pnpm test            # or: node --import ./test/register.mjs --test 'test/*.test.mjs'
+pnpm run check       # herdr-app check, once per role and dialog
+./install.sh         # copy into ~/.config/herdr-app: Herdr reloads it at once
+herdr-app status     # errors from the mod, if any
+herdr-app shot x.png # the last frame (bring the window to the front first, or it may be stale)
+```
+
+There are no dependencies to install: the tests use Node's own runner (Node 22 or later).
+
+## Layout of the code
+
+```
+layouts/tasker.json   Herdr's main layout with the task list, the detail column and a status bar
+layouts/tasker.svg    the picture Settings shows for the layout
+themes/tasker.json    the dark theme (light uses Herdr's paper)
+mods/tasker/
+  main.js             one mod, several roles by props: sidebar | detail | status | board | dialog
+  sidebar.js          Now and Projects, and the bookkeeping (ties new tabs to tasks, moves tasks
+                      as their agents work, adds up agent time); only the sidebar copy does it
+  detail.js           the task panel; looks up screen, diff and PR only while shown
+  board.js            the kanban tab
+  dialogs.js          task and project forms, menus, find, issues, archive, delete, settings
+  strings.js          every word the person reads (translate this file to localize)
+  lib/store.js        tasks.json: read, cleaned, compare-and-swap writes, file watch
+  lib/world.js        joins tasks with Herdr's spaces, tabs, agents and terminals; Now and Projects
+  lib/agentinfo.js    model, effort and context from Claude Code and Codex logs
+  lib/git.js          repository state, read without locks
+  lib/actions.js      start an agent, worktrees, archive, gh, links
+  lib/cache.js        caches shared by every copy of the mod (globalThis)
+  lib/open.js         opens dialogs with their sizes
+  lib/ui.js           shared pieces: icons, chips, buttons, marks
+test/                 Node tests with fake `herdr` and `gpui-kit` modules
+scripts/              check.sh, demo.mjs, fake-agent.sh, gpui-methods.mjs
+```
+
+## Tests
+
+`test/stubs/` fakes Herdr's modules: `herdr.js` holds a world you set (spaces, agents, terminals,
+files, what `git`/`gh`/`hc` answer) and records what the mod does; `gpui-kit.js` builds element
+trees that refuse what the app refuses (a `null` child, an element used twice, a method gpui-kit
+doesn't have; the list is in `gpui-methods.json`, refresh it after a Herdr update with
+`node scripts/gpui-methods.mjs`).
+
+- `test/render.test.mjs` renders every role and dialog against a busy world
+  (`test/fixture.mjs`), then fires every click, key and hover and renders again. It catches what
+  `herdr-app check` can't: rows that only exist with data, async states and handlers.
+- `test/logic.test.mjs` covers the rules: due dates, cleaning a hand-edited file, which tab is
+  whose, the Now order, tasks following their agents, reading agent logs, lookups only while shown.
+
+`scripts/check.sh` runs Herdr's own `herdr-app check` on a copy of the mod per role and dialog
+(`check` alone renders with no props).
+
+## A demo in the real window
+
+```sh
+node scripts/demo.mjs          # 3 made-up repos in ~/tasker-demo, 11 tasks, 3 stand-in agents
+node scripts/demo.mjs --clean  # closes the demo spaces, deletes ~/tasker-demo, restores your tasks
+```
+
+The stand-in agents (`scripts/fake-agent.sh`) report working, blocked (with a question) and done
+through the Program Status Protocol, as real agents do:
+`printf '\e]7501;state=blocked:kind=question:app=claude-code:msg=<base64>\e\\'`. This is how
+`preview.png` and `docs/board.png` are made: no personal data in them.
+
+## Things that tripped the build up
+
+- Herdr doesn't hot-reload a mod folder that is a symlink: install by copying.
+- `child(null)` throws in gpui-kit, and so does using an element twice. `false` is fine.
+- Every copy of the mod (sidebar, detail, status bar, board, each dialog) runs its own `init` and
+  `render`, but they share `globalThis`: caches of agent info, repository state and "since when"
+  live there (`lib/cache.js`) so each is looked up once.
+- `layout()` reflects nodes hidden by clicks (`hidden: true`): `onScreen(id)` in `lib/ui.js`.
+- `terminals()` doesn't always carry `status_ms`; tabs carry `working_since` and `changed_at`.
+- Claude Code transcripts hold multi-megabyte lines (pasted images): grep the fields from the last
+  4 MB (16 MB if needed) with `LC_ALL=C` instead of parsing JSON lines.
+- `hc read` output has `[hc] …` notes: drop them.
+- The `tabs` mod re-hides the `panel` column per space, so the detail is its own column.
+- `herdr-app shot` returns the last frame; with the window in the background it can be stale.
+
+## Publishing
+
+The repository is laid out as herdr.dev expects a layout: `layouts/tasker.json`, `mods/tasker/`,
+`RECIPE.md` and `preview.png` at the root, and the GitHub topic `herdr-layout`. herdr.dev picks it up
+within the hour. Before a release: tests, `scripts/check.sh`, a new `preview.png` from the demo if the
+look changed, and a line in `CHANGELOG.md`.

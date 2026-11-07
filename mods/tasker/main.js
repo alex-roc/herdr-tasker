@@ -1,0 +1,136 @@
+// tasker: a task manager over repos and coding agents.
+// One mod, several roles by props: { role: "sidebar" | "detail" | "status" | "board" },
+// or { dialog: ... } when opened as an overlay. Data: data/tasker/tasks.json.
+
+import { View, div } from "gpui-kit";
+import { h_flex } from "gpui-base";
+import { props, theme, spaces, panes, agents, terminals, home, window, shared, setShared, notify } from "herdr";
+import { S } from "./strings.js";
+import { Store } from "./lib/store.js";
+import { icon } from "./lib/ui.js";
+import { openDialog } from "./lib/open.js";
+import { RepoCache } from "./lib/git.js";
+import { AgentInfo } from "./lib/agentinfo.js";
+import { build } from "./lib/world.js";
+import { sharedCache } from "./lib/cache.js";
+import { launch } from "./lib/actions.js";
+import { today, localDay } from "./lib/util.js";
+import { Sidebar } from "./sidebar.js";
+import { Detail } from "./detail.js";
+import { Dialogs } from "./dialogs.js";
+import { Board } from "./board.js";
+
+export default class Tasker extends View {
+  init(_props, cx) {
+    const p = props() ?? {};
+    this.role = p.dialog ? "dialog" : p.role ?? "sidebar";
+    this.store = new Store();
+    this.store.watch(cx);
+    this.repos = new RepoCache();
+    this.info = new AgentInfo();
+    this.world = null;
+    // When each agent's state last changed: terminals() doesn't always say.
+    // One record for every copy, so the sidebar, the board and the detail agree.
+    const c = sharedCache("since");
+    if (!c.loaded) { try { Object.assign(c.info, JSON.parse(localStorage.getItem("since") ?? "{}")); } catch {} c.loaded = true; }
+    this.since = c.info;
+    if (this.role === "sidebar") this.initSidebar(cx);
+    else if (this.role === "detail") this.initDetail(cx);
+    else if (this.role === "dialog") this.initDialog(cx);
+    else if (this.role === "board") this.initBoard(cx);
+    else cx.timer.every(60000, (cx) => cx.notify());
+  }
+
+  // Herdr's live data joined with the tasks, once per render.
+  look(cx) {
+    const sp = spaces(), ps = panes(), ts = terminals();
+    const ag = agents();
+    this.world = build({ data: this.store.data, sp, ps, ag, ts, repos: this.repos, h: home() });
+    this.track(ag, ts);
+    if (this.role === "sidebar") {
+      // Repo state of every local space (remote ones stay as folders).
+      const list = this.world.spaces.filter((s) => s.folder && !s.on).map((s) => ({ folder: s.folder, on: null }));
+      this.repos.refresh(cx, list, window()?.active ? 45000 : 180000);
+    }
+    if (this.role !== "status") this.info.refresh(cx, this.world.tasks.flatMap((x) => x.agents.map((e) => e.term)).filter(Boolean));
+  }
+
+  // Stamps agents whose state changed (done and idle count as one, as in Herdr's list).
+  track(ag, ts) {
+    const now = Date.now();
+    const ms = new Map(ts.map((t) => [t.address, t.status_ms]));
+    let dirty = false;
+    for (const a of ag) {
+      const s = a.status === "done" ? "idle" : a.status;
+      if (this.since[a.address]?.s === s) continue;
+      this.since[a.address] = { s, at: this.since[a.address] ? now : ms.get(a.address) ?? now };
+      dirty = true;
+    }
+    if (!dirty) return;
+    const live = new Set(ag.map((a) => a.address));
+    for (const [k, v] of Object.entries(this.since)) if (!live.has(k) && now - v.at > 7 * 86400000) delete this.since[k];
+    try { localStorage.setItem("since", JSON.stringify(this.since)); } catch {}
+  }
+
+  // When an agent's state last changed: the core's own stamp, else its tab's
+  // (Herdr keeps working_since and changed_at per tab), else what tasker saw.
+  sinceOf(e) {
+    if (!e) return null;
+    const tab = this.world?.spaceOfTab.get(e.a.tab)?.tab;
+    const fromTab = e.status === "working" ? tab?.working_since : tab?.changed_at;
+    return e.term?.status_ms ?? fromTab ?? this.since[e.a.address]?.at ?? null;
+  }
+
+  launch(cx, task, worktree) {
+    cx.spawn(async () => {
+      try {
+        const pending = await launch(this.store, task, { worktree });
+        setShared("tasker.pending", [...(shared("tasker.pending") ?? []), { ...pending, beforeTabs: [...pending.beforeTabs], beforeSpaces: [...pending.beforeSpaces] }]);
+      } catch (e) {
+        notify({ title: S.launchFailed, body: String(e?.message ?? e), level: "error" });
+      }
+    });
+  }
+
+  renderStatus() {
+    const t = theme();
+    const w = this.world;
+    const d = this.store.data;
+    const open = w.tasks.filter((x) => x.open);
+    const doneToday = w.tasks.filter((x) => x.t.done_at && localDay(x.t.done_at) === today()).length;
+    const doing = open.filter((x) => x.t.status === "doing").length;
+    const needs = open.filter((x) => x.top === "blocked").length + w.untracked.filter((u) => u.top === "blocked").length;
+    const working = [...w.byTab.values()].flat().filter((e) => e.status === "working").length;
+    const max = d.settings.wip;
+    const over = doing > max;
+    const item = (id, color, iconName, text, onClick) => h_flex().id(id).gap(5).items_center().text_color(color)
+      .when(Boolean(iconName), (el) => el.child(icon(iconName, 12)))
+      .when(Boolean(onClick), (el) => el.cursor_pointer().hover((s) => s.opacity(0.8)).on_click(onClick))
+      .child(text);
+    return h_flex().size_full().px(14).gap(14).items_center().bg(t.chrome).border_t(1).border_color(t.border).text_size(11.5)
+      .child(item("st-done", doneToday ? t.ansi2 : t.dim, "circle-check", S.doneToday(doneToday)))
+      .child(item("st-doing", over ? t.ansi3 : t.muted, null, over ? S.doingOver(doing, max) : S.doingCount(doing, max)))
+      .when(needs > 0, (el) => el.child(item("st-needs", t.blocked, "circle-alert", S.needCount(needs), () => setShared("tasker.view", "now"))))
+      .child(item("st-working", working ? t.working : t.dim, "bot", S.workingCount(working)))
+      .child(div().flex_1())
+      .child(item("st-open", t.dim, null, S.openCount(open.length)))
+      .child(div().id("st-settings").text_color(t.dim).cursor_pointer().hover((s) => s.text_color(t.foreground)).tooltip(S.settings)
+        .on_click(() => openSettings()).child(icon("settings", 13)));
+  }
+
+  render(cx) {
+    if (this.role === "dialog") return this.renderDialog(cx);
+    this.look(cx);
+    if (this.role === "sidebar") {
+      if (this.store.loaded) this.keepBooks(cx, this.world);
+      return this.renderSidebar(cx);
+    }
+    if (this.role === "detail") return this.renderDetail(cx);
+    if (this.role === "board") return this.renderBoard(cx);
+    return this.renderStatus();
+  }
+}
+
+export const openSettings = () => openDialog("settings");
+
+Object.assign(Tasker.prototype, Sidebar, Detail, Dialogs, Board);

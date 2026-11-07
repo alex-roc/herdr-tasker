@@ -1,0 +1,16 @@
+{
+  "name": "herdr-tasker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A task manager for work done with coding agents: a layout for the Herdr app.",
+  "license": "MIT",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --import ./test/register.mjs --test 'test/*.test.mjs'",
+    "check": "sh scripts/check.sh",
+    "demo": "node scripts/demo.mjs",
+    "demo:clean": "node scripts/demo.mjs --clean",
+    "install-layout": "sh install.sh"
+  }
+}

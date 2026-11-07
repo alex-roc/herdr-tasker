@@ -1,0 +1,10 @@
+{
+  "layout:tasker": {
+    "cmd-k": "tasker.jump",
+    "cmd-shift-n": "tasker.new",
+    "cmd-j": "tasker.focus",
+    "cmd-shift-o": "tasker.view",
+    "cmd-i": "layout.toggle:tasker-detail",
+    "cmd-shift-b": "tasker.board"
+  }
+}

@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { H, touch } from "herdr";
 import { walk, isElement } from "gpui-kit";
 import Tasker from "../mods/tasker/main.js";
-import { world, cx, settle, FILE, task } from "./fixture.mjs";
+import { world, cx, settle, until, FILE, task } from "./fixture.mjs";
 
 async function mount(props, setup) {
   const w = world();
@@ -22,6 +22,7 @@ async function mount(props, setup) {
   const view = new Tasker();
   const c = cx();
   view.init(props, c);
+  await until(() => view.store.loaded);
   await settle();
   return { view, c };
 }

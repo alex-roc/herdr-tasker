@@ -13,7 +13,7 @@ import { AgentInfo } from "../mods/tasker/lib/agentinfo.js";
 import { RepoCache } from "../mods/tasker/lib/git.js";
 import { untrackedName } from "../mods/tasker/sidebar.js";
 import Tasker from "../mods/tasker/main.js";
-import { world, cx, settle, FILE, iso, task } from "./fixture.mjs";
+import { world, cx, settle, until, FILE, iso, task } from "./fixture.mjs";
 
 const at = new Date(2026, 10, 7, 15, 0); // Saturday 7 Nov 2026
 
@@ -196,6 +196,7 @@ test("tasks follow their agents: working → doing, finished → review, never d
   H.props = { role: "sidebar" };
   const v = new Tasker();
   v.init(H.props, cx());
+  await until(() => v.store.loaded);
   await settle();
   v.render(cx()); // first look: nothing moves
   await settle();
@@ -262,6 +263,7 @@ test("detail: nothing is looked up while the panel is hidden", async () => {
   H.shared["tasker.selected"] = "blocked1";
   const v = new Tasker();
   v.init(H.props, cx());
+  await until(() => v.store.loaded);
   await settle();
   v.render(cx());
   await settle();

@@ -28,6 +28,15 @@ export function cx() {
   return c;
 }
 
+// Waits until `cond()` holds (real I/O, like the store's mkdir, takes its own time).
+export async function until(cond, ms = 5000) {
+  const end = Date.now() + ms;
+  while (!cond()) {
+    if (Date.now() > end) throw new Error("timed out waiting");
+    await new Promise((r) => setTimeout(r, 2));
+  }
+}
+
 // Lets spawned work (and work it spawns) finish.
 export async function settle(n = 30) {
   for (let i = 0; i < n; i++) await new Promise((r) => setImmediate(r));

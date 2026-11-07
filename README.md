@@ -3,6 +3,8 @@
 **A task manager for work done with coding agents, as a layout for the [Herdr app](https://herdr.dev).**
 Projects → repositories → tasks → the agents working on them, with what needs you first.
 
+**[Website, tutorial and examples →](https://alex-roc.github.io/herdr-tasker/)**
+
 ![tasker: the Now list, an agent at work, and the task's detail](preview.png)
 
 Herdr already shows every terminal and agent you run. tasker adds the layer above them: *what are
@@ -17,6 +19,7 @@ finished, or start the next task.
 - [Your data](#your-data) · [For agents](docs/agents.md)
 - [What it runs on your machine](#what-it-runs-on-your-machine)
 - [Troubleshooting](#troubleshooting)
+- [Tutorial](https://alex-roc.github.io/herdr-tasker/tutorial.html) · [Examples](https://alex-roc.github.io/herdr-tasker/examples.html)
 - [Develop](docs/development.md) · [Recipe](RECIPE.md) · [Changelog](CHANGELOG.md)
 
 ## What you get

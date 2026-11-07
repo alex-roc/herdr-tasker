@@ -55,6 +55,19 @@ export function cleanProject(p) {
   return { ...p, id: str(p.id) || uid(), name: str(p.name).trim() || "Untitled", color: str(p.color) || "ansi4", repos: list(p.repos).filter((r) => typeof r === "string") };
 }
 
+// Two tasks with one id (two hand-made entries in the same second) would be one
+// task to every view: the later ones get "-2", "-3", the same on every read.
+function unique(tasks) {
+  const seen = new Set();
+  for (const t of tasks) {
+    let id = t.id, n = 1;
+    while (seen.has(id)) id = `${t.id}-${++n}`;
+    t.id = id;
+    seen.add(id);
+  }
+  return tasks;
+}
+
 export function parse(text) {
   if (!text) return EMPTY();
   const d = JSON.parse(text);
@@ -69,7 +82,7 @@ export function parse(text) {
     version: d.version ?? 1,
     settings,
     projects: list(d.projects).filter(obj).map(cleanProject),
-    tasks: list(d.tasks).filter(obj).map(cleanTask),
+    tasks: unique(list(d.tasks).filter(obj).map(cleanTask)),
   };
 }
 

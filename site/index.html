@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tasker · a task list for your coding agents</title>
+<meta name="description" content="tasker is a layout for the Herdr app: projects, repositories and tasks over the coding agents you run, with what needs you first.">
+<meta property="og:title" content="tasker for Herdr">
+<meta property="og:description" content="A task list for your coding agents: what needs you first, a board, and each agent's model, effort and context.">
+<meta property="og:image" content="https://alex-roc.github.io/herdr-tasker/img/overview.png">
+<meta name="theme-color" content="#16191c">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="mark" href="./"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="6" height="6" rx="1.6" fill="#e5737b" opacity=".9"/><rect x="11" y="4.5" width="11" height="3" rx="1.5" fill="#f1f3f5"/><circle cx="5" cy="12" r="2.4" fill="none" stroke="#6fa8e8" stroke-width="1.6"/><rect x="11" y="10.5" width="9" height="3" rx="1.5" fill="#8f96a0"/><circle cx="5" cy="19" r="1.8" fill="#5fc4b5"/><rect x="11" y="17.5" width="7" height="3" rx="1.5" fill="#8f96a0"/></svg>tasker</a>
+    <nav aria-label="Site">
+      <a href="tutorial.html">Tutorial</a>
+      <a href="examples.html">Examples</a>
+      <a class="gh" href="https://github.com/alex-roc/herdr-tasker">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <h1>Know which agent needs you next.</h1>
+        <p class="lede">tasker is a layout for the <a href="https://herdr.dev">Herdr app</a>. It ties the agents you run to the work they're for: <strong>projects, repositories and tasks</strong>, ordered by what moves things forward.</p>
+        <div class="install">
+          <div class="cmd"><span id="cmd">git clone https://github.com/alex-roc/herdr-tasker
+cd herdr-tasker &amp;&amp; ./install.sh --keys</span><button class="copy" data-copy="cmd" type="button">Copy</button></div>
+        </div>
+        <div class="next-steps">
+          <a class="button" href="tutorial.html">Start the tutorial</a>
+          <a class="button ghost" href="examples.html">See examples</a>
+        </div>
+      </div>
+
+      <div class="now" role="img" aria-label="tasker's Now list: one task whose agent asks a question, one ready for review, two agents working, and the next tasks by priority.">
+        <div class="now-tabs"><b>Now</b><i>Projects</i></div>
+        <div class="sec c-blocked" data-in style="--i:0">Needs you <small>1</small></div>
+        <div class="row" data-in style="--i:1"><span class="st blocked"></span><span class="t">Pick a database for sessions</span><span class="chips"><span class="chip p2">P2</span></span><span class="meta q">Sessions: Postgres or SQLite?</span></div>
+        <div class="sec c-done" data-in style="--i:2">To review <small>1</small></div>
+        <div class="row" data-in style="--i:3"><span class="st done"></span><span class="t">Rate-limit the public API</span><span class="chips"><span class="chip p1">P1</span></span><span class="meta">finished 3m ago</span></div>
+        <div class="sec c-working" data-in style="--i:4">Working <small>2</small></div>
+        <div class="row sel" data-in style="--i:5"><span class="st working"></span><span class="t">Add OAuth login</span><span class="chips"><span class="chip due">in 2d</span><span class="chip p1">P1</span></span><span class="meta">opus 5.5 · high · ctx 182k · working 14m</span></div>
+        <div class="row" data-in style="--i:6"><span class="st working"></span><span class="t">Polish the README</span><span class="chips"><span class="chip p2">P2</span></span><span class="meta">gpt-5.5-codex · medium · working 6m</span></div>
+        <div class="sec c-text" data-in style="--i:7">Up next <small>3</small></div>
+        <div class="row" data-in style="--i:8"><span class="st next"></span><span class="t">Fix the flaky checkout test</span><span class="chips"><span class="chip soon">today</span><span class="chip p1">P1</span></span><span class="meta">→ Reproduce with --repeat 50</span></div>
+        <div class="row" data-in style="--i:9"><span class="st next"></span><span class="t">Write the onboarding guide</span><span class="chips"><span class="chip due">in 4d</span><span class="chip p2">P2</span></span></div>
+        <div class="row" data-in style="--i:10"><span class="st next"></span><span class="t">Upgrade to Node 24</span><span class="chips"><span class="chip p3">P3</span></span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="shot">
+    <div class="wrap">
+      <div class="frame"><img src="img/overview.png" width="2240" height="1230" alt="The tasker layout in Herdr: the Now list on the left, an agent working in the middle, and the task's detail on the right with its agent, screen, changes and a box to message the agent." loading="eager"></div>
+      <p class="caption">The list on the left, the agent in the middle, and on the right everything about the selected task: its agent's model and effort, the last lines of its screen, its changes, and a box to send it the next instruction.</p>
+    </div>
+  </section>
+
+  <section class="section" id="views">
+    <div class="wrap">
+      <h2>Four ways to look at the same work</h2>
+      <p class="intro">Everything reads Herdr's live agents and one file of tasks, so the views never disagree. Click a task anywhere and the detail follows.</p>
+
+      <div class="views">
+        <div class="view side">
+          <img src="img/now-list.png" width="660" height="1100" alt="The Now list grouped into Needs you, To review, Working, Up next, Stalled and Inbox." loading="lazy">
+          <div><h3>Now</h3>
+          <p>What moves work forward, in order. An agent's question sits in the row itself, so you can answer without hunting for the tab.</p></div>
+        </div>
+        <div class="view side">
+          <img src="img/projects.png" width="660" height="1250" alt="The Projects outline: Acme with its repositories acme-web and acme-api, each with branch, changes and tasks." loading="lazy">
+          <div><h3>Projects</h3>
+          <p>Projects, their repositories (branch, commits not pushed, uncommitted changes) and their tasks. Terminals that belong to no task show up under their repository with a <em>Make task</em> button.</p></div>
+        </div>
+
+        <div class="view wide">
+          <img src="img/board.png" width="2240" height="1230" alt="The board: Inbox, Next, Doing, Waiting, Review and Done columns with task cards." loading="lazy">
+          <h3>Board</h3>
+          <p>One column per status. Drag a card to move it, filter by project, and watch the Doing column count against the limit you set.</p>
+        </div>
+
+        <div class="view wide split">
+          <img src="img/detail-blocked.png" width="736" height="1336" alt="The detail of a task whose agent needs an answer: the question, the agent's screen, its changes and a message box." loading="lazy">
+          <div>
+            <h3>Task detail</h3>
+            <p>Everything about one task, next to its agent.</p>
+            <ul class="points">
+              <li><span class="dot" style="background:var(--blocked)"></span><span>The question the agent is waiting on, and the last lines of its screen.</span></li>
+              <li><span class="dot" style="background:var(--working)"></span><span>Model, reasoning effort, context size and turn for Claude Code and Codex, plus sub-agents.</span></li>
+              <li><span class="dot" style="background:var(--done)"></span><span>Changes in its folder, its pull request and CI checks, with one click to ask for a PR or send the failures back.</span></li>
+              <li><span class="dot" style="background:var(--waiting)"></span><span>A box to send the agent your next instruction, without leaving the list.</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="flow">
+    <div class="wrap">
+      <h2>Tasks follow their agents</h2>
+      <p class="intro">You plan; the agents' state moves the rest. Nothing is marked done unless you do it.</p>
+      <ol class="track track-wrap">
+        <li style="--c:var(--muted)"><b>Inbox</b><span>Ideas and imported GitHub issues.</span></li>
+        <li style="--c:var(--text)"><b>Next</b><span><em>You</em> plan it, with a priority and a due date.</span></li>
+        <li style="--c:var(--working)"><b>Doing</b><span>Moves here <em>by itself</em> when its agent starts working.</span></li>
+        <li style="--c:var(--done)"><b>Review</b><span>Moves here <em>by itself</em> when its agent stops.</span></li>
+        <li style="--c:var(--ok)"><b>Done</b><span>Only <em>you</em> mark it done, after looking.</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <h2>Ten minutes to your first task</h2>
+      <p class="intro">The tutorial goes from install to a reviewed, finished task. The examples are workflows you can copy: a bug fixed in its own worktree, GitHub issues turned into a plan, an agent that files its own follow-ups.</p>
+      <div class="next-steps">
+        <a class="button" href="tutorial.html">Start the tutorial</a>
+        <a class="button ghost" href="examples.html">See examples</a>
+        <a class="button ghost" href="https://github.com/alex-roc/herdr-tasker">Source on GitHub</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>tasker is MIT licensed, made by Alex Ojeda Copa.</span>
+    <a href="https://herdr.dev">Herdr</a>
+    <a href="https://github.com/alex-roc/herdr-tasker">GitHub</a>
+    <a href="https://github.com/alex-roc/herdr-tasker/blob/main/CHANGELOG.md">Changelog</a>
+  </div>
+</footer>
+<script src="site.js" defer></script>
+</body>
+</html>

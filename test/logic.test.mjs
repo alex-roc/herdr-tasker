@@ -72,6 +72,8 @@ test("what's read is cleaned: odd values, missing fields, junk entries", () => {
   assert.deepEqual(t.tabs, ["tb1"]);
   assert.deepEqual(t.history, [{ s: "doing", at: 1 }]);
   assert.equal(cleanTask({ due: "2026-1-5" }).due, "2026-01-05");
+  const dup = parse(JSON.stringify({ tasks: [{ id: "x", title: "a" }, { id: "x", title: "b" }, { id: "x", title: "c" }] }));
+  assert.deepEqual(dup.tasks.map((t) => t.id), ["x", "x-2", "x-3"], "repeated ids are told apart, the same way every time");
   assert.throws(() => parse("[]"));
 });
 

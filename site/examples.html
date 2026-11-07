@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Examples · tasker</title>
+<meta name="description" content="Workflows with tasker for Herdr: a bug fixed in its own worktree, GitHub issues turned into a plan, several agents in one list, agents that file their own tasks.">
+<meta property="og:title" content="tasker examples">
+<meta property="og:image" content="https://alex-roc.github.io/herdr-tasker/img/board.png">
+<meta name="theme-color" content="#16191c">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="mark" href="./"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="6" height="6" rx="1.6" fill="#e5737b" opacity=".9"/><rect x="11" y="4.5" width="11" height="3" rx="1.5" fill="#f1f3f5"/><circle cx="5" cy="12" r="2.4" fill="none" stroke="#6fa8e8" stroke-width="1.6"/><rect x="11" y="10.5" width="9" height="3" rx="1.5" fill="#8f96a0"/><circle cx="5" cy="19" r="1.8" fill="#5fc4b5"/><rect x="11" y="17.5" width="7" height="3" rx="1.5" fill="#8f96a0"/></svg>tasker</a>
+    <nav aria-label="Site">
+      <a href="tutorial.html">Tutorial</a>
+      <a href="examples.html" aria-current="page">Examples</a>
+      <a class="gh" href="https://github.com/alex-roc/herdr-tasker">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="page-head">
+    <h1>Ways to work with it</h1>
+    <p>Workflows to copy. Each one assumes you've done the <a href="tutorial.html">tutorial</a>, or at least installed tasker and made a project.</p>
+  </div>
+
+  <div class="doc">
+    <nav class="toc" aria-label="Examples">
+      <ul>
+        <li><a href="#worktree">A bug fixed in its own worktree</a></li>
+        <li><a href="#issues">Issues into a week of work</a></li>
+        <li><a href="#parallel">Several agents, one list</a></li>
+        <li><a href="#adopt">Track work already started</a></li>
+        <li><a href="#agents-file">Agents that file their own tasks</a></li>
+        <li><a href="#capture">Capture a task from any terminal</a></li>
+        <li><a href="#scripts">Drive tasker from scripts</a></li>
+        <li><a href="#weekly">A weekly review</a></li>
+      </ul>
+    </nav>
+
+    <div>
+      <section class="example" id="worktree">
+        <h2>A bug fixed in its own worktree</h2>
+        <p class="when">You're in the middle of something on <code>main</code> and a bug report comes in. You want an agent on it without touching your checkout.</p>
+        <ol>
+          <li>Press <kbd>n</kbd>. Title: <em>Checkout total ignores the coupon</em>. Pick the repository, priority P1, due <code>today</code>, next step <em>Write a failing test first</em>.</li>
+          <li>Press <kbd>w</kbd>. tasker creates <code>task/checkout-total-ignores-the-coupon</code> in <code>~/.herdr/worktrees/&lt;repo&gt;/…</code> and starts your agent there, with the title and the next step as its first message.</li>
+          <li>Keep working. The task sits under <strong>Working</strong> with the agent's model and time; you'll see it jump to <strong>Needs you</strong> if it asks.</li>
+          <li>When it stops, the task is in <strong>To review</strong>. Open the detail, check <strong>Changes</strong>, then <strong>Ask for a pull request</strong>.</li>
+          <li>If CI fails, <strong>Send failed checks</strong> sends the agent their names. When the PR is merged, right-click → <strong>Archive</strong> and choose <em>Archive and remove worktree</em>.</li>
+        </ol>
+      </section>
+
+      <section class="example" id="issues">
+        <h2>Issues into a week of work</h2>
+        <p class="when">Your GitHub repository has a pile of open issues and you want a plan you can actually work through.</p>
+        <ol>
+          <li>In Projects, right-click the repository → <strong>Import GitHub issues</strong>. Tick the ones worth doing; they arrive in the <strong>Inbox</strong> with the issue's link and text attached.</li>
+          <li>Open the board (<kbd>cmd</kbd> <kbd>shift</kbd> <kbd>b</kbd>) and drag what you'll do this week from Inbox to <strong>Next</strong>.</li>
+          <li>In the list, set priorities with <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> and due dates like <code>wed</code> or <code>fri</code>. Up next sorts by priority, then due date.</li>
+          <li>Start an agent on the top one with <kbd>l</kbd>. It gets the issue's text in its first message, so it starts with the full report.</li>
+        </ol>
+        <p>Issues you've already imported don't show up again in the list.</p>
+      </section>
+
+      <section class="example" id="parallel">
+        <h2>Several agents, one list</h2>
+        <p class="when">Three agents on three tasks, maybe in different repositories. You want to spend your attention where it's needed, not cycle through tabs.</p>
+        <ol>
+          <li>Start each from its task (<kbd>l</kbd> or <kbd>w</kbd>). Each opens in its repository's space.</li>
+          <li>Stay in <strong>Now</strong>. Whatever is blocked is on top with its question; finished work is next; working agents after that.</li>
+          <li>Answer from the detail's <strong>Message the agent</strong> box, or <kbd>enter</kbd> to jump to the agent.</li>
+          <li>Herdr's next and previous agent keys follow tasker's order, so they visit the agents in the order the list shows them.</li>
+        </ol>
+        <p>Set a <strong>Doing limit</strong> in the settings (the gear in the status bar) to keep yourself honest: the status bar warns when you have more in progress than that.</p>
+      </section>
+
+      <section class="example" id="adopt">
+        <h2>Track work already started</h2>
+        <p class="when">You opened a terminal and started an agent before thinking of it as a task. Now it's grown.</p>
+        <ol>
+          <li>Find its tab in the list: under its repository in Projects, or in Now if it's working, finished or waiting on you. It's named after its title, or what runs in it and where, like <em>zsh · acme-web</em>.</li>
+          <li>Click <strong>Make task</strong>. tasker creates a task in Doing, named after the tab, tied to it.</li>
+          <li>Press <kbd>e</kbd> to give it a real title, a project and a due date. From now on it moves with its agent like any other.</li>
+        </ol>
+      </section>
+
+      <section class="example" id="agents-file">
+        <h2>Agents that file their own tasks</h2>
+        <p class="when">An agent finishes a job and notices three more things worth doing. You'd like those in your Inbox, not lost in its scrollback.</p>
+        <p>Tasks live in one JSON file that tasker reloads within a second of any change. Add this to your agent's instructions (<code>AGENTS.md</code>, <code>CLAUDE.md</code>, or the prompt):</p>
+        <pre><code>When you find follow-up work outside your task, add it to my task list as an
+Inbox task instead of doing it: append to the "tasks" array of
+~/.config/herdr-app/data/tasker/tasks.json an object with "id" (agent-&lt;timestamp&gt;),
+"title", "repo" (~/path), "status": "inbox", "priority" (1-3), "notes" (why),
+"created" and "updated" (ms since epoch) and "history": [{"s": "inbox", "at": &lt;ms&gt;}].
+Keep every other field as it is, write to a temp file and rename it over the
+original. Never mark my tasks done and never delete them.</code></pre>
+        <p>The full rules, with Node and shell examples, are in <a href="https://github.com/alex-roc/herdr-tasker/blob/main/docs/agents.md">docs/agents.md</a>. tasker checks every field it reads, so a slightly wrong entry still shows up, and it never writes over a file it can't parse.</p>
+      </section>
+
+      <section class="example" id="capture">
+        <h2>Capture a task from any terminal</h2>
+        <p class="when">An idea comes up while you're in a shell. You want it in the Inbox in one line.</p>
+        <p>Add this function to your <code>~/.zshrc</code> or <code>~/.bashrc</code> (it needs <code>jq</code>):</p>
+        <pre><code>todo() {
+  local f=~/.config/herdr-app/data/tasker/tasks.json now=$(($(date +%s) * 1000))
+  local repo=$(git rev-parse --show-toplevel 2&gt;/dev/null | sed "s|^$HOME|~|")
+  [ -f "$f" ] || echo '{"tasks":[]}' &gt; "$f"
+  jq --arg t "$*" --arg r "$repo" --arg id "cli-$now-$RANDOM" --argjson n "$now" \
+    '.tasks += [{id: $id, title: $t, repo: (if $r == "" then null else $r end),
+      status: "inbox", priority: 2, created: $n, updated: $n, history: [{s: "inbox", at: $n}]}]' \
+    "$f" &gt; "$f.tmp" &amp;&amp; mv "$f.tmp" "$f"
+}</code></pre>
+        <pre><code>todo Rename the billing env vars before the release</code></pre>
+        <p>Run inside a repository, the task is tied to it, so it shows under that repository in Projects.</p>
+      </section>
+
+      <section class="example" id="scripts">
+        <h2>Drive tasker from scripts</h2>
+        <p class="when">You want a shortcut, a launcher or another tool to open tasker's views.</p>
+        <p>tasker answers these commands while its layout is on screen:</p>
+        <pre><code>herdr-app do tasker.new             <span class="c"># the New task form</span>
+herdr-app do tasker.jump            <span class="c"># find a task</span>
+herdr-app do tasker.board           <span class="c"># open (or go to) the board</span>
+herdr-app do tasker.view            <span class="c"># switch Now and Projects</span>
+herdr-app do tasker.settings        <span class="c"># the settings</span>
+herdr-app do tasker.select:&lt;id&gt;     <span class="c"># show that task's detail</span>
+herdr-app do layout.toggle '{"id":"tasker-detail"}'  <span class="c"># show or hide the detail</span></code></pre>
+        <p>For example, a Raycast or Alfred command that runs <code>herdr-app do tasker.new</code> gives you a global "new task" key.</p>
+      </section>
+
+      <section class="example" id="weekly">
+        <h2>A weekly review</h2>
+        <p class="when">Friday afternoon. What moved, what's stuck, what's next.</p>
+        <ol>
+          <li><strong>Stalled</strong> in Now lists Doing and Waiting tasks that haven't moved in a few days (you set how many). Decide each one: back to Next, Waiting with a note, or Dropped.</li>
+          <li>The board's <strong>Done</strong> column shows the last seven days; the status bar counts what you finished today.</li>
+          <li>In Projects, the eye button shows finished tasks too. Archive what's settled to put its tabs away.</li>
+          <li>Drag next week's work from Inbox to Next, and set the priorities.</li>
+        </ol>
+      </section>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>tasker is MIT licensed, made by Alex Ojeda Copa.</span>
+    <a href="https://herdr.dev">Herdr</a>
+    <a href="https://github.com/alex-roc/herdr-tasker">GitHub</a>
+    <a href="https://github.com/alex-roc/herdr-tasker/blob/main/CHANGELOG.md">Changelog</a>
+  </div>
+</footer>
+<script src="site.js" defer></script>
+</body>
+</html>

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### New
+- **Website** with a tutorial and examples: https://alex-roc.github.io/herdr-tasker/
+- Tasks with the same id in `tasks.json` (two entries made in the same second) are told apart.
+
 ## 1.0.0 — 2026-11-07
 
 First public release.

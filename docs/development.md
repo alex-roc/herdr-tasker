@@ -82,6 +82,13 @@ through the Program Status Protocol, as real agents do:
 - The `tabs` mod re-hides the `panel` column per space, so the detail is its own column.
 - `herdr-app shot` returns the last frame; with the window in the background it can be stale.
 
+## The website
+
+`site/` is the GitHub Pages site (https://alex-roc.github.io/herdr-tasker/): plain HTML and CSS, no
+build. `.github/workflows/pages.yml` publishes it on every push that touches `site/`. Its pictures
+in `site/img/` come from the demo (`scripts/demo.mjs`), cropped; never from your own spaces. Preview
+it with `python3 -m http.server -d site 8765`.
+
 ## Publishing
 
 The repository is laid out as herdr.dev expects a layout: `layouts/tasker.json`, `mods/tasker/`,

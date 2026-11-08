@@ -6,7 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { H, touch } from "herdr";
-import { walk, isElement } from "gpui-kit";
+import { walk, isElement, text } from "gpui-kit";
 import Tasker from "../mods/tasker/main.js";
 import { world, cx, settle, until, FILE, task } from "./fixture.mjs";
 
@@ -93,8 +93,8 @@ test("sidebar: the key commands", async () => {
   for (const c2 of ["board", "jump", "view", "new", "focus"]) view.command(c2, cx());
 });
 
-for (const dialog of ["task", "project", "menu", "repo", "jump", "issues", "archive", "settings", "confirm-delete", "loose"]) {
-  for (const extra of [{}, { task: "blocked1", project: "pa", repo: "~/dev/app", tab: "tb4" }, { task: "review1", repo: "~/dev/web", tab: "tb3", attach: "tb4" }]) {
+for (const dialog of ["task", "project", "menu", "repo", "jump", "issues", "archive", "settings", "confirm-delete", "loose", "project-menu", "confirm-close", "later"]) {
+  for (const extra of [{}, { task: "blocked1", project: "pa", repo: "~/dev/app", tab: "tb4", repos: ["~/dev/app"], name: "App" }, { task: "review1", project: "pw", repo: "~/dev/web", tab: "tb3", attach: "tb4" }]) {
     test(`dialog ${dialog} ${JSON.stringify(extra)}`, async () => {
       const { view, c } = await mount({ dialog, overlay: "ov1", ...extra });
       assert.deepEqual(c.errors.map(String), []);
@@ -114,6 +114,85 @@ test("task form: saves once even when Enter is pressed twice", async () => {
   await settle();
   const data = JSON.parse(H.files.get(FILE()));
   assert.equal(data.tasks.filter((t) => t.title === "Brand new").length, 1);
+});
+
+test("delete: the task is marked deleted before the dialog closes", async () => {
+  const { view } = await mount({ dialog: "confirm-delete", overlay: "ov1", task: "review1" });
+  H.shared["tasker.selected"] = "review1";
+  const del = walk(render(view).tree).find((n) => n.id === "del");
+  del.handlers.on_click({}, cx());
+  await settle();
+  assert.equal(JSON.parse(H.files.get(FILE())).tasks.find((x) => x.id === "review1").deleted, true);
+  assert.equal(H.shared["tasker.selected"], null);
+  assert.deepEqual(H.closed, ["ov1"]);
+});
+
+test("task menu: a status picked there is saved, then the menu closes", async () => {
+  const { view } = await mount({ dialog: "menu", overlay: "ov1", task: "review1" });
+  walk(render(view).tree).find((n) => n.id === "s-done").handlers.on_click({}, cx());
+  await settle();
+  assert.equal(JSON.parse(H.files.get(FILE())).tasks.find((x) => x.id === "review1").status, "done");
+  assert.deepEqual(H.closed, ["ov1"]);
+});
+
+test("sidebar: clicking a task shows it and brings its agent's tab to the front", async () => {
+  const { view } = await mount({ role: "sidebar" });
+  H.shared["tasker.view"] = "projects";
+  const row = (id) => walk(render(view).tree).find((n) => n.id === `t-${id}`);
+  H.runs.length = 0;
+  row("doing1").handlers.on_click({}, cx());
+  assert.equal(H.shared["tasker.selected"], "doing1");
+  assert.deepEqual(H.runs.find(([n]) => n === "pane.focus"), ["pane.focus", { pane: "p1" }]);
+  assert.ok(!H.runs.some(([n]) => n === "layout.show"), "selecting never opens the task panel");
+  H.runs.length = 0;
+  row("next1").handlers.on_click({}, cx());
+  assert.equal(H.shared["tasker.selected"], "next1");
+  assert.ok(!H.runs.some(([n]) => n === "pane.focus"), "a task with no tab only shows");
+});
+
+test("project form: a folder from the picker is added, ticked", async () => {
+  const { view } = await mount({ dialog: "project", overlay: "ov1" });
+  H.picked = `${H.home}/notes`;
+  walk(render(view).tree).find((n) => n.id === "add-folder").handlers.on_click({}, cx());
+  await settle();
+  assert.ok(view.form.repos.includes("~/notes"));
+  assert.ok(walk(render(view).tree).some((n) => n.id === "r-~/notes"));
+  delete H.picked;
+});
+
+test("close a project: one question, then every space of its repos closes", async () => {
+  const { view } = await mount({ dialog: "confirm-close", overlay: "ov1", repos: ["~/dev/app", "~/dev/web"], name: "Both" });
+  const words = text(render(view).tree);
+  assert.match(words, /Close Both\?/);
+  assert.match(words, /its 2 spaces/);
+  H.runs.length = 0;
+  walk(render(view).tree).find((n) => n.id === "close-it").handlers.on_click({}, cx());
+  assert.deepEqual(H.runs.filter(([n]) => n === "space.close").map(([, a]) => [a.id, a.confirmed]).sort(), [["sp1", true], ["sp2", true]]);
+  assert.deepEqual(H.closed, ["ov1"]);
+});
+
+test("a terminal in no task shows its agent's line: model, context, how long", async () => {
+  const { view } = await mount({ role: "sidebar" });
+  H.shared["tasker.view"] = "now";
+  const row = walk(render(view).tree).find((n) => n.id === "u-tb4");
+  const words = row.children.map(text).join(" ");
+  assert.match(words, /Opus 4\.7|opus|ctx|\d+\s?(s|m|h)/i);
+});
+
+test("later dialog: a word for a day puts the task off", async () => {
+  const { view } = await mount({ dialog: "later", overlay: "ov1", task: "next1" });
+  view.laterInput.type("someday", cx());
+  view.laterInput.submit(cx());
+  await settle();
+  assert.equal(JSON.parse(H.files.get(FILE())).tasks.find((x) => x.id === "next1").snooze, "someday");
+  assert.deepEqual(H.closed, ["ov1"]);
+});
+
+test("status bar: a button opens and closes the task panel", async () => {
+  const { view } = await mount({ role: "status" });
+  H.runs.length = 0;
+  walk(render(view).tree).find((n) => n.id === "st-detail").handlers.on_click({}, cx());
+  assert.deepEqual(H.runs, [["layout.toggle", { id: "tasker-detail" }]]);
 });
 
 test("task form: due accepts words and shortcuts", async () => {

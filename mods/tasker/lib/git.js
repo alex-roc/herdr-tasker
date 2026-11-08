@@ -79,13 +79,17 @@ export class RepoCache {
     for (const d of due) c.busy[this.key(d.folder, d.on)] = now;
     // Side by side: one slow repo (a network drive) doesn't hold up the rest.
     cx.spawn(async (cx) => {
+      let changed = false;
       await Promise.all(due.map(async ({ folder, on }) => {
         const k = this.key(folder, on);
-        try { c.info[k] = await repoState(folder, on); } catch { c.info[k] = null; }
+        let s = null;
+        try { s = await repoState(folder, on); } catch {}
+        if (!(k in c.info) || JSON.stringify(s) !== JSON.stringify(c.info[k])) { c.info[k] = s; changed = true; }
         c.seen[k] = Date.now();
         delete c.busy[k];
       }));
-      cx.notify();
+      // Redraws only for news: every redraw of a mod redraws the whole window.
+      if (changed) cx.notify();
     });
   }
 }

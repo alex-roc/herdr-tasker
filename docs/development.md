@@ -77,6 +77,16 @@ through the Program Status Protocol, as real agents do:
 - Every copy of the mod (sidebar, detail, status bar, board, each dialog) runs its own `init` and
   `render`, but they share `globalThis`: caches of agent info, repository state and "since when"
   live there (`lib/cache.js`) so each is looked up once.
+- Closing an overlay drops that copy of the mod, and what it spawned and hadn't finished never
+  runs. A dialog writes first and closes after: `this.closeAfter(cx, work)` in `dialogs.js`. The
+  test stub does the same (`cx().spawn` in `test/fixture.mjs` skips work once its overlay is closed).
+- Every redraw of a mod redraws the whole window, terminals included: a lookup redraws only when
+  what it found changed (`cx.notify()` behind a comparison), and timers look without drawing.
+- Several lists can be on screen (Now and Projects stacked). Key commands reach every shown copy:
+  only one list acts, Now when both show (`isFirstList`); the test stub delivers a command to every
+  waiting copy, as Herdr does. Bookkeeping state (`workSince`, `prevTop`) lives in
+  `sharedCache("books")`, so whichever list draws first records a change once. A stack shows one
+  child: `onScreen` and `shownLists` in `lib/ui.js` follow its `active` one.
 - `layout()` reflects nodes hidden by clicks (`hidden: true`): `onScreen(id)` in `lib/ui.js`.
 - `terminals()` doesn't always carry `status_ms`; tabs carry `working_since` and `changed_at`.
 - Claude Code transcripts hold multi-megabyte lines (pasted images): grep the fields from the last

@@ -6,7 +6,7 @@ import { v_flex, h_flex } from "gpui-base";
 import { theme, setShared, run, shared } from "herdr";
 import { S } from "./strings.js";
 import { setStatus } from "./lib/store.js";
-import { RANK, byUrgency, base, shortModel, issueLabel } from "./lib/util.js";
+import { RANK, byUrgency, base, shortModel, issueLabel, isLater, laterLabel } from "./lib/util.js";
 import { statusIcon, taskMark, prioChip, dueChip, chip, iconButton, icon, agentFor, agentMark, programIcon } from "./lib/ui.js";
 import { untrackedName } from "./lib/world.js";
 import { adopt } from "./lib/actions.js";
@@ -83,6 +83,7 @@ export const Board = {
     return v_flex().id(`card-${task.id}`).p(9).gap(6).flex_none().rounded(9).bg(t.background)
       .border_1().border_color(blocked ? t.blocked : selected ? t.accent : t.border)
       .when(lifted, (el) => el.opacity(0.45))
+      .when(!lifted && isLater(task), (el) => el.opacity(0.6))
       .cursor_pointer().hover((s) => s.border_color(t.input))
       .on_mouse_down("left", (_e, cx) => { this.pressed = task.id; this.over = task.status; cx.notify(); })
       .on_mouse_down("right", (_e, cx) => {
@@ -99,6 +100,7 @@ export const Board = {
       .child(h_flex().gap(5).items_center().flex_wrap()
         .child(prioChip(t, task.priority))
         .when(Boolean(due), (el) => el.child(due))
+        .when(isLater(task), (el) => el.child(chip(t, S.laterUntil(laterLabel(task.snooze)), t.dim)))
         .when(Boolean(task.issue), (el) => el.child(chip(t, issueLabel(task.issue), t.dim)))
         .when(Boolean(task.branch), (el) => el.child(h_flex().gap(3).items_center().text_size(10).text_color(t.dim).child(icon("git-branch", 11)).child(task.branch.replace(/^task\//, ""))))
         .child(div().flex_1())

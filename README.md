@@ -39,11 +39,18 @@ What makes it different:
 | Section | What's in it |
 |---|---|
 | **Needs you** | Tasks whose agent is blocked, with the agent's question right in the row |
-| **To review** | Tasks whose agent finished, or that you put in Review |
+| **To review** | Tasks in Review, and tasks in Doing whose agent finished |
 | **Working** | Tasks with an agent at work: model · effort · context size · how long |
 | **Up next** | Next, Doing and Waiting tasks by priority, then due date |
 | **Stalled** | Doing or Waiting tasks that haven't moved in a few days |
 | **Inbox** | Ideas and imported issues, not yet planned |
+| **Later** | Tasks you put off, folded: each comes back on its day (or *someday*: when you bring it back) |
+
+Which status when: **Next** you'll do it, **Waiting** it depends on someone else, **Inbox** not decided,
+**Dropped** you won't. To put one off without changing what it is, use **Later** (right-click, `z`, or
+the detail): tomorrow, next week, a day you type (`fri`, `+3d`, `12-24`) or *someday*. On its day it
+comes back with a notification. Once a day, a notification also tells you what's due or late
+(*Reminders* in the settings turns both off).
 
 Agents in tabs that belong to no task show up too: in the section that fits when they need you,
 finished or are working, and under **Not in a task** otherwise. **Make task** turns one into a task;
@@ -52,7 +59,13 @@ its menu also offers **Add to task…** to tie it to one you already have.
 **Projects**: an outline of projects → repositories → tasks. Each repository shows its branch,
 commits not pushed (↑) and uncommitted changes (•), and the terminals open there that belong to no
 task. From a repository: `›_` opens a terminal there, `+` a task, and `⋯` (or right-click) starts any
-installed agent there, imports GitHub or Linear issues, or moves it to another project.
+installed agent there, imports GitHub or Linear issues, moves it to another project, or closes its
+spaces. From a project: `›_` opens a terminal, `+` a task for the whole project, and `⋯` (or
+right-click) starts an agent across all its repositories or closes them all. An agent started for the
+whole project (or on a task with a project but no repository) starts in its first repository with the
+others added (`--add-dir`, Claude Code and Codex) and is told which they are; a task in one repository
+of a bigger project hears of the others. Terminals and agents in no task show the same line as a task:
+model, effort, context and how long in their state.
 
 **Board**: a kanban tab (`cmd-shift-b`, or the board button) with Inbox, Next, Doing (with your
 limit), Waiting, Review and Done (last 7 days). Drag a card to change its status, click to open it,
@@ -61,7 +74,8 @@ drag one onto a column to make it a task there.
 
 ![The board](docs/board.png)
 
-**Task detail** (right panel): status and priority, the next step and notes; each agent with its
+**Task detail** (right panel, when you want more: the panel button in the status bar, `cmd-i`, `i`
+or *Details* in a task's menu; selecting a task never opens it, and it stays as you left it): status and priority, the next step and notes; each agent with its
 model, reasoning effort, context, turn and sub-agents, and the question it's waiting on; the last
 lines of its screen; the changes in its folder, its pull request and CI checks (with *Ask for a pull
 request* and *Send failed checks*); a box to **message the agent**; time in state, agent time and the
@@ -79,7 +93,7 @@ worktree (a branch with unmerged commits is kept).
 After a restart, or once you closed its tab, *Resume agent* (or `r`) runs `claude --resume <id>` or
 `codex resume <id>` in its folder, tied to the task again.
 
-**Plan usage** in the status bar: `Claude 28% wk 34%`, `Codex 8% wk 12%`, amber from 70% and red
+**Plan usage** in the status bar (off until you turn it on in the settings): `Claude 28% wk 34%`, `Codex 8% wk 12%`, amber from 70% and red
 from 90%; hover for when each limit resets, click to look again.
 
 Inspired by the task → worktree → review → ship flow of [Orca](https://github.com/stablyai/orca).
@@ -115,7 +129,8 @@ Your other layouts are untouched; switch back the same way.
 ## Use it
 
 1. **Add a project.** In Projects, the folder button makes one; tick the repositories that belong
-   to it (any repository open in Herdr is offered). Or right-click a repository → Project.
+   to it (any repository open in Herdr is offered), or *Add folder…* for one that isn't open. Or
+   right-click a repository → Project.
 2. **Add tasks.** `n`, the `+` button, `+` on a repository, or *Import GitHub issues* / *Import
    Linear issues* from a repository's menu. A due date takes `today`, `tomorrow`, `fri`, `+3d`, `2w`,
    `12-24` or `2026-12-24`.
@@ -126,9 +141,10 @@ Your other layouts are untouched; switch back the same way.
 5. **Work from Now.** Answer what needs you, review what's done (*Show changes*, the PR and its
    checks are in the detail), then press `space` to mark it done.
 
-Settings (the gear in the status bar): how many tasks can be in Doing before the status bar warns
-you, after how many days a task counts as stalled, which agent *Start agent* runs, and whether the
-status bar shows plan usage.
+Settings (the gear in the status bar): Now and Projects as tabs or **stacked** (both at once, one
+above the other, as Herdr's spaces and agents), how many tasks can be in Doing before the status bar
+warns you, after how many days a task counts as stalled, which agent *Start agent* runs, and whether
+the status bar shows plan usage. Stacked, `tab` moves the keys between the two lists.
 
 **Linear** (optional): create a personal API key (Linear → Settings → Security & access → Personal
 API keys) and either export it as `LINEAR_API_KEY` in your login shell profile or save it alone in
@@ -150,7 +166,8 @@ With `./install.sh --keys` (only while the tasker layout is shown):
 
 In the list: `j`/`k` or arrows move, `enter` goes to the task's agent, `space` marks done (again: back
 to Next), `1` `2` `3` set priority, `n` new, `e` edit, `l` start agent, `w` start in a worktree, `r` resume
-its agent, `/` find, `tab` switches view. Right-click a task, a repository or a project for its menu.
+its agent, `z` later, `i` details, `/` find, `tab` switches view. Clicking a task shows it and brings its agent's tab (or its
+terminal) to the front. Right-click a task, a repository or a project for its menu.
 
 From a script or an agent: `herdr-app do tasker.new`, `tasker.board`, `tasker.view`, `tasker.jump`,
 `tasker.settings`, `tasker.linear` (import Linear issues), and `tasker.select:<task id>` (shows that task).
@@ -163,13 +180,14 @@ file it can't read (it shows what's wrong instead). It never goes in this reposi
 
 ```jsonc
 {
-  "settings": { "wip": 3, "stale_days": 3, "agent": "claude", "usage": true },   // agent: a key from Herdr's agent menu
+  "settings": { "wip": 3, "stale_days": 3, "agent": "claude", "usage": false, "reminders": true },   // agent: a key from Herdr's agent menu
   "projects": [{ "id": "p1", "name": "Acme", "color": "ansi4", "repos": ["~/dev/acme"] }],
   "tasks": [{
     "id": "t1", "title": "Add OAuth login", "project": "p1", "repo": "~/dev/acme",
     "status": "next",            // inbox | next | doing | waiting | review | done | dropped
     "priority": 1,               // 1 high, 2 normal, 3 low
     "due": "2026-11-20", "estimate": "2h", "next_step": "Wire the callback", "notes": "",
+    "snooze": null,              // Later: "YYYY-MM-DD" (back that day) or "someday"
     "issue": { "source": "github", "number": 12, "url": "https://github.com/…", "body": "…" },  // Linear: "number": "ENG-12"
     "worktree": null, "branch": null,
     "tabs": ["<herdr tab id>"], "agent_ms": 0, "history": [{ "s": "next", "at": 1794000000000 }],

@@ -18,31 +18,41 @@ every task by status.
   - **Now**: collapsible sections, header 11px medium in the section's color plus a count and a
     chevron: Needs you (`blocked`), To review (`done`), Working (`working`), Up next (foreground,
     first 7, then "N more" which opens Projects), Stalled (`ansi3`), Inbox (`dim`, first 5).
-    Then **Not in a task** (`dim`): idle agents whose tab belongs to no task.
+    Then **Not in a task** (`dim`): idle agents whose tab belongs to no task; then **Later** (`dim`,
+    folded until opened): tasks put off, soonest back first, *someday* last.
     Empty: "Nothing needs you. Press n for a new task, or open Projects to see your repositories."
   - **Projects**: a project row (9px colored square, name 12px semibold, count of tasks and loose
     tabs, chevron); under it the tasks without repository, then repository rows (chevron, name,
     `⎇ branch`, `↑ahead`, `•dirty` in `ansi3`, "not open" when no space is in it, each with a
     tooltip; then `square-terminal` new terminal, `plus` new task, `ellipsis` menu), the
     repository's tasks, and its tabs in no task. Open git repositories and folders in no project go
-    under "No project".
+    under "No project". A project row also has `square-terminal` (a terminal for the whole project),
+    `plus` (a task for the whole project) and `ellipsis` (its menu).
   - **Task row**: 16px mark (the lead agent's state as Herdr draws it: spinner, "!" on
     `blocked`+26 alpha, 7px dot `done`, ring `idle`; else the status icon: inbox, circle-dot,
     circle-play, circle-pause, eye, circle-check, circle-x), title (semibold when its agent is done),
     repository name in Now, due chip ("2d late" on `blocked`, today/tomorrow on `ansi3`, else `dim`),
     priority chip P1 `ansi1` / P2 `ansi3` / P3 `dim`. A second 11px line: the agent's question in
     `blocked`, else "opus 5.5 · high · ctx 241k · working 4m" (or "finished 3m ago", "idle 1h"), else
-    "→ next step". Hover shows a play button on tasks without an agent. Selected row on `selected`.
+    "Later · back fri" (title in `dim`) for a task put off, else "→ next step". Hover shows a play
+    button on tasks without an agent. Selected row on `selected`.
   - **Loose tab row** (a tab in no task): program icon or terminal icon, its name (the tab's name,
-    the agent's title, else "zsh · <folder>", never the address), and a **Make task** button
+    the agent's title, else "zsh · <folder>", never the address), a second line like a task's
+    (the question, else "opus 5.5 · medium · ctx 54k · idle 1h"), and a **Make task** button
     (tooltip "Turn this tab into a task…"; the task is Doing if its agent works or waits on you,
     Review if it finished, else Next). Right-click: a popup (240×150) with Make task, Add to task…
     (the find dialog in attach mode: open tasks only, picking one ties the tab to it) and Go to agent.
-- **Right column `tasker-detail`, 360px, hidden until a task is selected**: header "Task" with pencil
+- **Two lists at once** (optional): the list block sits in a stack `tasker-lists` whose other child,
+  `tasker-split`, is a column of two blocks with `view: "projects"` (top) and `view: "now"` (bottom),
+  weight 1 each, min 90px. A list with a `view` shows its name (icon + "Projects"/"Now") instead of
+  the two pills. The settings pick the child with `layout.select`.
+- **Right column `tasker-detail`, 360px, hidden until opened** (status-bar button, cmd-i, `i`,
+  *Details*, or a card clicked on the board; selecting a task never opens it): header "Task" with pencil
   and ✕; title 15px with its status icon; repository, due chip, "est. 2h", issue link; a row of status
   icons where only the current one shows its name, and P1–P3; actions (Start agent / Start in a
   worktree, or Go to agent; with no agent and a remembered conversation, Resume agent first (rotate-ccw,
-  tooltip "Continue its last Claude Code conversation (2h ago)"); Mark done in Review; Show changes); sections in 10.5px uppercase `dim`:
+  tooltip "Continue its last Claude Code conversation (2h ago)"); Later… (moon) or Bring back with a
+  "Later · back fri" chip; Mark done in Review; Show changes); sections in 10.5px uppercase `dim`:
   Next step, Notes, Agents (cards: program icon, title, address, state, "opus 5.5 · medium · ctx
   248k · turn 7 · working 1m", the pending question, sub-tasks and sub-agents as a tree), Screen
   (last 8 non-empty lines of the agent's terminal), Changes (branch, "N files +add −del", PR chip
@@ -65,10 +75,13 @@ every task by status.
   something first" when over), "! N need(s) you" (click: Now), "N working"; on the right plan usage
   "Claude 28% wk 34%" and "Codex 8% wk 12%" (`muted`, `ansi3` from 70%, `blocked` from 90%, by the
   fuller limit; tooltip with reset times; click looks again; "Claude !" with the reason on error),
-  "N open" and a settings gear.
-- **Dialogs** (Herdr dialogs, `popover` background): task form 560×660, project 480×500, settings
-  460×440, find 520×420, issues 540×460, archive 460×230, delete 420×190; menus are popups (task
-  250×290, repository 250×340). Forms scroll and keep their buttons in a footer with a border.
+  "N open", a `panel-right` button that shows or hides the detail (`foreground` when shown) and a
+  settings gear. Plan usage is off until turned on.
+- **Dialogs** (Herdr dialogs, `popover` background): task form 560×660, project 480×500 (repositories
+  to tick, and *Add folder…* with the system's folder picker), settings 480×610, find 520×420, issues
+  540×460, archive 460×230, delete 420×190, close 440×200, later 420×200; menus are popups (task
+  270×410, repository 250×370, project 270×290, loose tab 240×150). Forms scroll and keep their
+  buttons in a footer with a border.
 - Theme: `themes/tasker.json` for dark (`#1a1d21` background, teal accent `#5fc4b5`, `working`
   `#6fa8e8`, `blocked` `#e5737b`, `done` `#5fc4b5`), Herdr's `paper` for light.
 
@@ -79,11 +92,27 @@ every task by status.
   sub-agents included.
 - When a task's agent starts working the task becomes *doing* (from inbox, next, waiting, review or
   done); when it stops after working, a *doing* task becomes *review*. Nothing becomes *done* by
-  itself. Agent working time adds up per task. Only the sidebar copy does this bookkeeping.
-- Clicking a task selects it and shows the detail; Enter (or Go to agent) focuses its agent's pane.
-  Right-click: a task's menu (edit, start, start in worktree, status icons, priority, archive,
-  delete in `blocked`); a repository's menu (new terminal, "New <agent> here" for each installed
-  agent, new task, import GitHub issues, its project); a project: edit it.
+  itself. A finished agent puts its task in To review only from Doing: Next, Waiting and Inbox stay.
+  Agent working time adds up per task. The list copies do this bookkeeping, their state shared
+  (`globalThis`) so two lists on screen record each change once.
+- Clicking a task selects it and focuses its agent's pane (else a terminal of its tabs); Enter does
+  the same, and opens the task form when it has neither.
+  Right-click: a task's menu (details, edit, start, start in worktree, status icons, priority, Later:
+  Tomorrow / Next week / Someday / Pick…, Bring back, archive, delete in `blocked`); a repository's
+  menu (new terminal, "New <agent> here" for each installed agent, close repo, new task, import
+  issues, its project); a project's menu (a terminal and each agent for the whole project, new task,
+  edit, close project).
+- Later: `snooze` is `YYYY-MM-DD` (a day after today) or `someday`. A task put off leaves every Now section but Needs you
+  and Working, and waits in Later; on its day it comes back (snooze cleared) with a notification.
+  Doing, done and dropped clear it.
+- Reminders (on by default): a notification for tasks back from Later, and once a day (`reminded`)
+  for what's due today or late; one notification for several; clicking it runs `tasker.select:<id>`
+  (or `tasker.focus`).
+- A task for the whole project (a project, no repository) and a project's own agents start in its
+  first repository with `--add-dir` for the others (Claude Code and Codex); the first message names
+  every repository of the project. A task in one repository of a bigger project hears of the others.
+- Close repo / Close project: one confirmation ("Closes its 2 spaces … and 1 agent"), then
+  `space.close {confirmed: true}` for each space open in those repositories.
 - Delete and archive ask first. Delete hides the task (`deleted: true`); archive marks it done,
   settles its tabs and can `git worktree remove` + `git branch -d`.
 - Start agent: `tab.new` in the repository's space named after the task with the task as its first
@@ -94,8 +123,9 @@ every task by status.
   open git repositories), status, priority (P1 High, P2 Normal, P3 Low), due (today, tomorrow, fri,
   +3d, 2w, 12-24, 2026-12-24, with "in 3d · 2026-11-10" beside the label, red border when not
   understood), estimate, next step, notes. Enter saves once.
-- Settings: steppers for the Doing limit (1–20) and stalled days (1–60), the installed agents as
-  pills (the chosen one stays even if not installed), and Plan usage On/Off.
+- Settings: Now and Projects (Tabs / Stacked, when the layout has `tasker-lists`), steppers for the
+  Doing limit (1–20) and stalled days (1–60), Reminders On/Off, Plan usage On/Off (off by default),
+  and the installed agents as pills (the chosen one stays even if not installed).
 - Resume: while a local Claude Code or Codex agent runs, its session id and folder are kept on the
   task (`sessions`, newest 5). Resume runs the agent's `run` + `--resume <id>` (Codex: `resume <id>`)
   in that folder, with no first message, through the same launch-and-tie path as Start agent.
@@ -103,18 +133,21 @@ every task by status.
   canceled, with a personal API key from `$LINEAR_API_KEY` or `data/tasker/linear-key`; Linear
   priority 1–2 → P1, 3 → P2, 4 → P3; due date kept). Issues already imported (same URL) are hidden.
   Linear issues show as "ENG-12", GitHub ones as "#12".
-- Keys in the list: j/k, arrows, enter, space, 1–3, n, e, l, w, /, tab. Layout keys: cmd-j, cmd-k,
+- Keys in the list: j/k, arrows, enter, space, 1–3, n, e, l, w, r, z (later), i (details), /, tab
+  (with two lists: to the other one). Layout keys: cmd-j, cmd-k,
   cmd-shift-n, cmd-shift-o, cmd-i, cmd-shift-b. Mod commands: `new`, `jump`, `board`, `view`,
-  `focus`, `settings`, `linear`, `select:<id>`; list key `r` resumes.
+  `focus`, `settings`, `linear`, `select:<id>` (selects it and opens the detail: scripts and
+notifications ask for it). With two lists on screen, Now acts on them and sets agent.next/prev.
 
 ## Built from
 
-- Layout: Herdr's `main` with `sidebar-lists` replaced by a block `{mod: "tasker", props: {role:
-  "sidebar"}}`, a hidden column `tasker-detail` (`role: "detail"`) appended to `work-body`, and the
+- Layout: Herdr's `main` with `sidebar-lists` replaced by the stack `tasker-lists` (a block `{mod:
+  "tasker", props: {role: "sidebar"}}`, and the `tasker-split` column of two lists), a hidden column `tasker-detail` (`role: "detail"`) appended to `work-body`, and the
   status block given `role: "status"`; root `"preview": "layouts/tasker.svg"`. Kept:
   `workspace-chrome`, `tabs`, `pane` (header), `files`, `changes`.
 - One mod, `tasker`, roles by props; dialogs are the same mod as overlays with `{dialog: "task" |
-  "project" | "menu" | "repo" | "jump" | "issues" | "archive" | "confirm-delete" | "settings"}`,
+  "project" | "menu" | "repo" | "project-menu" | "jump" | "issues" | "archive" | "confirm-delete" |
+  "confirm-close" | "later" | "settings"}`,
   opened through one function that holds their sizes.
 - Data in `data/tasker/tasks.json`: `readTextFile`, every task and project cleaned on read,
   `writeTextFile` compare-and-swap with retries, never over a file that doesn't parse, `watchFolder`
@@ -123,8 +156,11 @@ every task by status.
   repository state, since-when) so every copy looks once.
 - `spaces()`, `panes()`, `agents()`, `terminals()` joined per render; `setAgentOrder` follows the
   list. Since when: `status_ms`, else the tab's `working_since` / `changed_at`, else tasker's stamp.
-- `layout()` tells whether `tasker-detail` is on screen: the detail reads `hc read`, `git diff` and
-  `gh pr view` only then, every 15 s with the window in front (PR every 60 s).
+- `layout()` tells whether `tasker-detail` is on screen (a stack shows only its `active` child): the
+  detail reads `hc read`, `git diff` and `gh pr view` only then, every 15 s with the window in front
+  (PR every 60 s), and redraws only when what it read changed; it skips `hc read` while the agent's
+  terminal has the focus. Agent info, repository state and plan usage redraw only on news too: every
+  redraw of a mod redraws the whole window.
 - Model, effort and context: Claude Code `~/.claude/sessions/<pid>.json` → transcript, searched
   with `tail -c 4MB | LC_ALL=C grep -aoE` for the last `"model"`, `"effort"` and usage counts (16 MB
   if not found); Codex rollout via `lsof -p <pid>` → `turn_context` and `token_count`; on another
@@ -151,6 +187,11 @@ every task by status.
 - `hc read` output carries "[hc] …" notes; drop them. Shell titles are often the terminal address.
 - The tabs mod re-hides the `panel` column per space, so the detail lives in its own column.
 - Herdr already notifies blocked and done agents; tasker adds no toasts for them.
+- Closing an overlay drops that copy and the work it spawned: a dialog writes first, then closes.
+- Key commands reach every shown copy: with two lists, only Now acts.
+- A store write that fails redraws once for the message, not on every retry (a render that retries
+  it would loop).
+- Reminders come from the list copies: a layout without a tasker list sends none.
 - `herdr-app shot` returns the last frame: with the window in the background it can be stale.
 - The theme file is part of the layout: copy `themes/tasker.json` too.
 

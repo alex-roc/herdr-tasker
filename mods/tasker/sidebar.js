@@ -4,13 +4,14 @@
 
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { theme, run, shared, setShared, setAgentOrder, home, spaces, terminals, panes, nextCommand } from "herdr";
+import { theme, run, shared, setShared, setAgentOrder, home, spaces, terminals, panes, nextCommand, props, notify } from "herdr";
 import { S } from "./strings.js";
 import { setStatus } from "./lib/store.js";
 import { nowView, projectTree, untrackedName } from "./lib/world.js";
-import { arrived, link, openHere, adopt } from "./lib/actions.js";
-import { RANK, shortModel, kilo, base, tilde } from "./lib/util.js";
-import { taskMark, prioChip, dueChip, agentMark, sectionHeader, iconButton, programIcon, CHEVRON, icon, agentFor } from "./lib/ui.js";
+import { arrived, link, openHere, adopt, openInProject } from "./lib/actions.js";
+import { RANK, shortModel, kilo, base, tilde, today, isLater, laterLabel } from "./lib/util.js";
+import { taskMark, prioChip, dueChip, agentMark, sectionHeader, iconButton, programIcon, CHEVRON, icon, agentFor, shownLists } from "./lib/ui.js";
+import { sharedCache } from "./lib/cache.js";
 import { openDialog } from "./lib/open.js";
 import { projectColor } from "./dialogs.js";
 
@@ -20,8 +21,12 @@ export const Sidebar = {
   initSidebar(cx) {
     this.folded = new Set(JSON.parse(localStorage.getItem("folded") ?? "[]"));
     this.filters = JSON.parse(localStorage.getItem("filters") ?? '{"done":false}');
-    this.prevTop = null; // task id -> its most urgent agent state at the last look
-    this.workSince = {}; // agent address -> when it started working
+    // A list can show one view only ({ view: "now" | "projects" }): two of them, one above
+    // the other, show both at once. Without it, the list has Now/Projects tabs.
+    this.fixedView = ["now", "projects"].includes(props()?.view) ? props().view : null;
+    // Bookkeeping state lives where every list sees it: with two lists on screen,
+    // whichever draws first records a change, and the other finds it recorded.
+    this.books = sharedCache("books").info; // prevTop: task id -> top state; workSince: address -> ms
     this.handle = cx.focus_handle();
     this.order = [];
     cx.timer.every(30000, (cx) => cx.notify()); // durations
@@ -29,11 +34,33 @@ export const Sidebar = {
       for (;;) {
         const c = await nextCommandSafe();
         if (c == null) return;
+        // Key commands reach every list on screen: the first one acts.
+        if (!this.isFirstList()) continue;
         if (c === "focus") this.handle.focus();
         else this.command(c, cx);
         cx.notify();
       }
     });
+  },
+
+  // The list that takes key commands and sets agent.next/prev: the only one on screen,
+  // Now when both show (the list you work from), else the first.
+  isFirstList() {
+    const lists = shownLists();
+    if (!lists.length) return true;
+    return (lists.includes("now") ? "now" : lists[0]) === this.fixedView;
+  },
+
+  view() {
+    return this.fixedView ?? shared("tasker.view") ?? "now";
+  },
+
+  // To the other view: the other tab, or the other list when both show.
+  switchView() {
+    const next = this.view() === "now" ? "projects" : "now";
+    if (!this.fixedView || !shownLists().includes(next)) return setShared("tasker.view", next);
+    sharedCache("lists").info.focus = next;
+    setShared("tasker.listFocus", Date.now()); // redraws every list; that one takes the keys
   },
 
   fold(id, cx) {
@@ -42,15 +69,28 @@ export const Sidebar = {
     cx.notify();
   },
 
+  // Selecting shows the task in the detail panel when it's open; it never opens it:
+  // the panel is there when the person wants more (its button, cmd-i, i, Details).
   select(id) {
     setShared("tasker.selected", id);
-    run("layout.show", { id: "tasker-detail" });
   },
 
-  // To the task's agent; without one, its form.
-  go(task, x) {
+  // The pane to show for a task: its agent's (the one that needs you most), else a
+  // terminal in one of its open tabs.
+  paneOf(x) {
     const e = x && lead(x);
-    if (e?.a?.pane) run("pane.focus", { pane: e.a.pane });
+    if (e?.a?.pane) return e.a.pane;
+    for (const tab of x?.live ?? []) {
+      const p = panes().find((y) => y.tab === tab && y.terminal);
+      if (p) return p.pane;
+    }
+    return null;
+  },
+
+  // To the task's agent or terminal; without one, its form.
+  go(task, x) {
+    const pane = this.paneOf(x);
+    if (pane) run("pane.focus", { pane });
     else this.openTaskForm({ task: task.id });
   },
 
@@ -62,7 +102,12 @@ export const Sidebar = {
     const move = (d) => { const id = this.order[Math.max(0, Math.min(this.order.length - 1, (i < 0 ? -d : i) + d))]; if (id) setShared("tasker.selected", id); };
     const upd = (fn) => task && cx.spawn(async () => this.store.update((d) => { const x = d.tasks.find((y) => y.id === task.id); if (!x) return false; fn(x); x.updated = Date.now(); }));
     // "select:<task id>" (herdr-app do tasker.select:<id>): show that task, for scripts and agents.
-    if (c.startsWith("select:")) { const id = c.slice(7); if (this.store.task(id)) this.select(id); return; }
+    // Asked for by a script or a notification: the panel opens for it.
+    if (c.startsWith("select:")) {
+      const id = c.slice(7);
+      if (this.store.task(id)) { this.select(id); run("layout.show", { id: "tasker-detail" }); }
+      return;
+    }
     switch (c) {
       case "down": return move(1);
       case "up": return move(-1);
@@ -74,16 +119,18 @@ export const Sidebar = {
       case "launch": return task && this.launch(cx, task, false);
       case "worktree": return task?.repo && this.launch(cx, task, true);
       case "resume": return task && this.resume(cx, task);
+      case "later": return task && openDialog("later", { task: task.id });
+      case "details": return task && run("layout.show", { id: "tasker-detail" });
       case "jump": return openDialog("jump");
       case "board": return this.openBoard();
       case "settings": return openDialog("settings");
       case "linear": return openDialog("issues", { source: "linear" });
-      case "view": return setShared("tasker.view", (shared("tasker.view") ?? "now") === "now" ? "projects" : "now");
+      case "view": return this.switchView();
     }
   },
 
   key(e, cx) {
-    const map = { j: "down", down: "down", k: "up", up: "up", enter: "open", space: "done", 1: "p1", 2: "p2", 3: "p3", n: "new", e: "edit", l: "launch", w: "worktree", r: "resume", "/": "jump", tab: "view" };
+    const map = { j: "down", down: "down", k: "up", up: "up", enter: "open", space: "done", 1: "p1", 2: "p2", 3: "p3", n: "new", e: "edit", l: "launch", w: "worktree", r: "resume", z: "later", i: "details", "/": "jump", tab: "view" };
     const c = e.modifiers?.control || e.modifiers?.platform || e.modifiers?.alt ? null : map[e.key];
     if (!c) return;
     this.command(c, cx);
@@ -125,16 +172,17 @@ export const Sidebar = {
       for (const e of x.agents) {
         const addr = e.a.address;
         live.add(addr);
-        const since = this.workSince[addr];
-        if (e.status === "working" && since == null) this.workSince[addr] = now;
+        const workSince = (this.books.workSince ??= {});
+        const since = workSince[addr];
+        if (e.status === "working" && since == null) workSince[addr] = now;
         if (e.status !== "working" && since != null) {
           const ms = Math.min(now - since, 8 * 3600000);
           ops.push((d) => { const t = d.tasks.find((y) => y.id === x.t.id); if (t) t.agent_ms = (t.agent_ms ?? 0) + ms; });
-          delete this.workSince[addr];
+          delete workSince[addr];
         }
       }
     }
-    for (const a of Object.keys(this.workSince)) if (!live.has(a)) delete this.workSince[a];
+    for (const a of Object.keys(this.books.workSince ?? {})) if (!live.has(a)) delete this.books.workSince[a];
     // The conversation each local agent is in, kept on its task so it can be resumed.
     for (const x of w.tasks) {
       for (const e of x.agents) {
@@ -148,12 +196,12 @@ export const Sidebar = {
       }
     }
     // Task status follows its agents; never to done by itself.
-    const first = this.prevTop == null;
-    const prev = this.prevTop ?? {};
-    this.prevTop = {};
+    const first = this.books.prevTop == null;
+    const prev = this.books.prevTop ?? {};
+    this.books.prevTop = {};
     for (const x of w.tasks) {
       const top = x.top;
-      this.prevTop[x.t.id] = top;
+      this.books.prevTop[x.t.id] = top;
       if (first || prev[x.t.id] === top || x.t.archived || x.t.status === "dropped") continue;
       const was = prev[x.t.id];
       if (top === "working" && ["inbox", "next", "waiting", "review", "done"].includes(x.t.status)) ops.push((d) => setStatus(d.tasks.find((y) => y.id === x.t.id), "doing"));
@@ -162,7 +210,36 @@ export const Sidebar = {
       }
       // Herdr itself notifies when an agent needs you or finishes: no second toast here.
     }
+    this.remind(w, ops, now);
     if (ops.length) cx.spawn(async () => this.store.update((d) => { for (const op of ops) op(d); }));
+  },
+
+  // Tasks put off whose day came: back in Now, with a notification. And once a day,
+  // what's due or late. `books.sent` keeps two lists on screen from sending twice.
+  remind(w, ops, now) {
+    const day = today();
+    const sent = (this.books.sent ??= {});
+    const on = this.store.data.settings.reminders !== false;
+    const pick = (list) => list.map((x) => x.t);
+    const tell = (title, tasks, level = "info") => {
+      if (!on || !tasks.length) return;
+      notify({ title, body: tasks.map((t) => t.title).slice(0, 4).join(" · ") + (tasks.length > 4 ? " …" : ""), level,
+        action: tasks.length === 1 ? { name: `tasker.select:${tasks[0].id}` } : { name: "tasker.focus" } });
+    };
+    const back = pick(w.tasks.filter((x) => x.open && !x.t.archived && x.t.snooze && x.t.snooze !== "someday" && x.t.snooze <= day && sent[`back:${x.t.id}`] !== x.t.snooze));
+    for (const t of back) {
+      sent[`back:${t.id}`] = t.snooze;
+      ops.push((d) => { const y = d.tasks.find((z) => z.id === t.id); if (y && y.snooze === t.snooze) { y.snooze = null; y.updated = now; } });
+    }
+    tell(S.backTitle(back.length), back);
+    // One notification per task a day: one back from Later today isn't told again as due.
+    const told = new Set(back.map((t) => t.id));
+    const due = pick(w.tasks.filter((x) => x.open && !x.t.archived && !told.has(x.t.id) && !isLater(x.t) && x.t.due && x.t.due <= day && x.t.reminded !== day && sent[`due:${x.t.id}`] !== day));
+    for (const t of due) {
+      sent[`due:${t.id}`] = day;
+      ops.push((d) => { const y = d.tasks.find((z) => z.id === t.id); if (y) y.reminded = day; });
+    }
+    tell(S.dueTitle(due.some((t) => t.due < day), due.length), due, due.some((t) => t.due < day) ? "warning" : "info");
   },
 
   // ── Rows ────────────────────────────────────────────────────────────────
@@ -175,18 +252,25 @@ export const Sidebar = {
     const msg = blocked ? (e.report?.msg ?? "").replace(/^answer:\s*/i, "") : null;
     const since = this.sinceOf(e);
     const meta = e ? [shortModel(info?.model), info?.effort, info?.ctx ? S.ctx(kilo(info.ctx)) : null, agentFor(e.top, since)].filter(Boolean).join(" · ") : null;
-    const second = msg || meta || (task.next_step ? `→ ${task.next_step}` : null);
+    const later = isLater(task) ? S.laterUntil(laterLabel(task.snooze)) : null;
+    const second = msg || meta || later || (task.next_step ? `→ ${task.next_step}` : null);
     const done = task.status === "done" || task.status === "dropped";
     const due = done ? null : dueChip(t, task.due);
     return v_flex().id(`t-${task.id}`).pl(8 + depth * 14).pr(6).py(4).flex_none().rounded(8).gap(1)
       .when(selected, (el) => el.bg(t.selected))
       .cursor_pointer().hover((s) => s.bg(t.hover))
-      .on_click((_e, cx) => { this.select(task.id); this.handle.focus(); cx.notify(); })
+      // Shows the task and brings its tab to the front; a task with none keeps the keys here.
+      .on_click((_e, cx) => {
+        this.select(task.id);
+        const pane = this.paneOf(x);
+        if (pane) run("pane.focus", { pane }); else this.handle.focus();
+        cx.notify();
+      })
       .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); setShared("tasker.selected", task.id); openDialog("menu", { task: task.id }); })
       .on_hover((on, cx) => { this.hovered = on ? task.id : this.hovered === task.id ? null : this.hovered; cx.notify(); })
       .child(h_flex().h(20).gap(7).items_center()
         .child(taskMark(t, task, e?.top))
-        .child(div().flex_1().min_w(0).truncate().text_color(done ? t.dim : t.foreground).when(e?.top === "done", (el) => el.font_semibold()).child(task.title))
+        .child(div().flex_1().min_w(0).truncate().text_color(done || later ? t.dim : t.foreground).when(e?.top === "done", (el) => el.font_semibold()).child(task.title))
         .when(showRepo && Boolean(task.repo), (el) => el.child(div().flex_none().max_w(90).truncate().text_size(11).text_color(t.dim).child(base(task.repo))))
         .when(this.hovered === task.id && !e && !done, (el) => el.child(iconButton(t, `go-${task.id}`, "play", S.startHint, (_e, cx) => this.launch(cx, task, false))))
         .when(Boolean(due), (el) => el.child(due))
@@ -201,12 +285,16 @@ export const Sidebar = {
     const pic = programIcon(e?.a.program ?? p0?.program, 14, t.muted) ?? icon("square-terminal", 13, t.dim);
     const pane = e?.a.pane ?? p0?.pane;
     const info = e ? this.info.get(e.a.address) : null;
-    const meta = e ? [shortModel(info?.model), info?.effort, agentFor(u.top ?? e.status, this.sinceOf(e))].filter(Boolean).join(" · ") : "";
-    return h_flex().id(`u-${u.tab}`).pl(8 + depth * 14).pr(6).h(26).flex_none().gap(7).rounded(8).items_center()
+    // The same second line as a task's: model, effort, context, how long in this state.
+    const meta = e ? [shortModel(info?.model), info?.effort, info?.ctx ? S.ctx(kilo(info.ctx)) : null, agentFor(u.top ?? e.status, this.sinceOf(e))].filter(Boolean).join(" · ") : "";
+    const blocked = u.top === "blocked";
+    const msg = blocked ? (e?.report?.msg ?? "").replace(/^answer:\s*/i, "") : "";
+    const second = msg || meta;
+    return v_flex().id(`u-${u.tab}`).pl(8 + depth * 14).pr(6).py(3).flex_none().gap(1).rounded(8)
       .cursor_pointer().hover((s) => s.bg(t.hover))
-      .when(Boolean(meta), (el) => el.tooltip(meta))
       .on_click(() => pane && run("pane.focus", { pane }))
       .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openDialog("loose", { tab: u.tab }); })
+      .child(h_flex().h(20).gap(7).items_center()
       .child(h_flex().w(16).justify_center().child(agentMark(t, u.top) ?? pic))
       .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(name))
       .child(div().id(`track-${u.tab}`).px(6).h(18).rounded(4).flex().items_center().text_size(10.5).text_color(t.dim)
@@ -215,7 +303,8 @@ export const Sidebar = {
           cx.stop_propagation();
           cx.spawn(async () => { const id = await adopt(this.store, u); if (id) setShared("tasker.selected", id); });
         })
-        .child(S.makeTask));
+        .child(S.makeTask)))
+      .when(Boolean(second), (el) => el.child(div().pl(23).truncate().text_size(11).text_color(blocked ? t.blocked : t.dim).child(second)));
   },
 
   // ── Now ─────────────────────────────────────────────────────────────────
@@ -223,10 +312,12 @@ export const Sidebar = {
     const v = nowView(w, this.store.data);
     const rows = [];
     const order = [];
-    const section = (id, label, list, color, { max = 99, untracked = [] } = {}) => {
+    // `shut`: folded until opened (Later: out of the way is the point).
+    const section = (id, label, list, color, { max = 99, untracked = [], shut = false } = {}) => {
       if (!list.length && !untracked.length) return;
-      const open = !this.folded.has(id);
-      rows.push(sectionHeader(t, `sec-${id}`, label, list.length + untracked.length, color, open, (cx) => this.fold(id, cx)));
+      const key = shut ? `${id}:open` : id;
+      const open = shut ? this.folded.has(key) : !this.folded.has(key);
+      rows.push(sectionHeader(t, `sec-${id}`, label, list.length + untracked.length, color, open, (cx) => this.fold(key, cx)));
       if (!open) return;
       for (const x of list.slice(0, max)) { rows.push(this.taskRow(t, x, { showRepo: true })); order.push(x.t.id); }
       for (const u of untracked) rows.push(this.untrackedRow(t, u));
@@ -240,6 +331,7 @@ export const Sidebar = {
     section("stalled", S.stalled, v.stalled, t.ansi3);
     section("inbox", S.inbox, v.inbox, t.dim, { max: 5 });
     section("loose", S.notInTask, [], t.dim, { untracked: v.untrackedIdle });
+    section("later", S.later, v.later, t.dim, { shut: true });
     this.order = order;
     if (!rows.length) rows.push(div().px(12).pt(12).text_size(12).text_color(t.dim).child(S.emptyNow));
     return rows;
@@ -283,10 +375,15 @@ export const Sidebar = {
       const open = !this.folded.has(id);
       rows.push(h_flex().id(id).px(8).pt(8).h(32).flex_none().gap(7).items_center().cursor_pointer()
         .on_click((_e, cx) => this.fold(id, cx))
-        .on_mouse_down("right", (_e, cx) => { if (p) { cx.stop_propagation(); openDialog("project", { project: p.id }); } })
+        .on_mouse_down("right", (_e, cx) => { if (p) { cx.stop_propagation(); openDialog("project-menu", { project: p.id }); } })
         .child(div().size(9).rounded(3).flex_none().bg(p ? projectColor(p) : t.dim))
         .child(div().flex_1().min_w(0).truncate().text_size(12).font_semibold().text_color(p ? t.foreground : t.dim).child(p?.name ?? S.noProject))
         .when(!open && Boolean(x.top), (el) => el.child(agentMark(t, x.top)))
+        // A terminal and a task for the whole project (every repository), and its menu.
+        .when(Boolean(p?.repos?.length), (el) => el.child(iconButton(t, `pterm-${id}`, "square-terminal", S.projectTerminal, () => openInProject(p))))
+        .when(Boolean(p), (el) => el
+          .child(iconButton(t, `padd-${id}`, "plus", S.projectTaskHint, () => this.openTaskForm({ project: p.id })))
+          .child(iconButton(t, `pmore-${id}`, "ellipsis", S.projectMenu, () => openDialog("project-menu", { project: p.id }))))
         .child(div().text_size(11).text_color(t.dim).child(String(x.count)))
         .child(svg(CHEVRON(open)).size(11).flex_none().text_color(t.dim)));
       if (!open) return;
@@ -303,21 +400,27 @@ export const Sidebar = {
   renderSidebar(cx) {
     const t = theme();
     const w = this.world;
-    const view = shared("tasker.view") ?? "now";
+    const view = this.view();
+    // Asked to take the keys (tab in the other list).
+    const lists = sharedCache("lists").info;
+    if (this.fixedView && lists.focus === this.fixedView) { lists.focus = null; this.handle.focus(); }
     const rows = !this.store.loaded ? [div().px(12).text_color(t.dim).child(S.loading)]
       : view === "now" ? this.nowRows(t, w) : this.projectRows(t, w);
     // agent.next/prev follow the list.
     const seen = new Set();
     const addrs = [];
     for (const id of this.order) for (const e of w.taskById.get(id)?.agents ?? []) if (!seen.has(e.a.address)) { seen.add(e.a.address); addrs.push(e.a.address); }
-    setAgentOrder(addrs);
+    // agent.next/prev follow the first list on screen.
+    if (this.isFirstList()) setAgentOrder(addrs);
     const tabBtn = (id, label) => div().id(`v-${id}`).px(9).h(24).gap(5).rounded(6).flex().items_center().text_size(12).cursor_pointer()
       .bg(view === id ? t.selected : t.chrome).text_color(view === id ? t.foreground : t.muted).font_medium()
       .hover((s) => s.bg(t.hover)).on_click(() => setShared("tasker.view", id)).child(icon(id === "now" ? "zap" : "folder-tree", 13)).child(label);
     return v_flex().id("tasker-sidebar").track_focus(this.handle).on_key_down((e, cx) => this.key(e, cx))
       .size_full().min_h(0).bg(t.chrome).text_size(12.8).text_color(t.foreground)
       .child(h_flex().px(10).h(40).flex_none().gap(4).items_center().border_b(1).border_color(t.border)
-        .child(tabBtn("now", S.now)).child(tabBtn("projects", S.projects))
+        .when(!this.fixedView, (el) => el.child(tabBtn("now", S.now)).child(tabBtn("projects", S.projects)))
+        .when(Boolean(this.fixedView), (el) => el.child(h_flex().px(4).gap(6).items_center().text_size(12).font_medium().text_color(t.muted)
+          .child(icon(view === "now" ? "zap" : "folder-tree", 13)).child(view === "now" ? S.now : S.projects)))
         .child(div().flex_1())
         .when(view === "projects", (el) => el.child(iconButton(t, "flt-done", this.filters.done ? "eye" : "eye-off", this.filters.done ? S.hideDone : S.showDone, (_e, cx) => {
           this.filters.done = !this.filters.done; localStorage.setItem("filters", JSON.stringify(this.filters)); cx.notify();

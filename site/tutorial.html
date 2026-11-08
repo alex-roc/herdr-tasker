@@ -63,7 +63,7 @@ cd herdr-tasker
         <h2>Switch to tasker</h2>
         <p>Open Herdr's Settings → Look and pick <strong>tasker</strong>, or from any terminal:</p>
         <pre><code>herdr-app do layout.switch '{"name":"tasker"}'</code></pre>
-        <p>Your spaces, tabs and agents are the same; tasker only changes how they're shown. The left sidebar becomes the task list, a detail panel opens on the right when you pick a task, and the status bar counts what's done today, what's in progress and what needs you. Switch back to Herdr's own layout the same way.</p>
+        <p>Your spaces, tabs and agents are the same; tasker only changes how they're shown. The left sidebar becomes the task list, a detail panel on the right shows the task you pick when you want more (open it with the panel button in the status bar or <kbd>cmd</kbd> <kbd>i</kbd>; it stays open or closed as you leave it), and the status bar counts what's done today, what's in progress and what needs you. Switch back to Herdr's own layout the same way.</p>
       </section>
 
       <section class="step" id="project">
@@ -72,7 +72,7 @@ cd herdr-tasker
           <figure><img src="img/projects.png" width="660" height="1250" alt="The Projects view: the Acme project with two repositories, their branches, changes and tasks." loading="lazy"></figure>
           <div>
             <p>Press <kbd>tab</kbd> in the list (or click <strong>Projects</strong>) to see the outline. Every repository open in Herdr shows up, under <em>No project</em> at first.</p>
-            <p>Click the folder button in the header to make a project: give it a name and a color, and tick the repositories that belong to it. You can also right-click a repository and pick a project.</p>
+            <p>Click the folder button in the header to make a project: give it a name and a color, and tick the repositories that belong to it. A repository that isn't open in Herdr comes in with <strong>Add folder…</strong>. A project's own <strong>›_</strong>, <strong>+</strong> and <strong>⋯</strong> open a terminal, a task or an agent for the whole project: the agent starts in its first repository, gets the others too, and is told which they are. <strong>⋯ → Close project</strong> closes every space of its repositories (a repository's menu closes just its own). You can also right-click a repository and pick a project.</p>
             <p>Each repository row shows its branch, <code>↑2</code> for commits not pushed and <code>•3</code> for uncommitted changes. Hover them for the words.</p>
           </div>
         </div>
@@ -82,6 +82,7 @@ cd herdr-tasker
         <h2>Add tasks</h2>
         <p>Press <kbd>n</kbd>, click <strong>+</strong> in the header, or <strong>+</strong> on a repository to start with that repository filled in.</p>
         <figure class="mid"><img src="img/form.png" width="1160" height="1360" alt="The New task form: title, project, repository, status, priority, due date, estimate, next step and notes." loading="lazy"><figcaption>Only the title is required. Enter saves.</figcaption></figure>
+        <p>Keep the title short. The <strong>next step</strong> is the one action to take now; what the work needs (context, details, how it should be done, links) goes in <strong>Notes</strong>. When you start an agent on the task, it gets the title, the next step and the notes as its first message.</p>
         <p>Write the due date the way you'd say it:</p>
         <table class="keys">
           <tr><td><code>today</code>, <code>tomorrow</code></td><td>as you'd expect</td></tr>
@@ -128,6 +129,7 @@ cd herdr-tasker
           <figure><img src="img/detail-review.png" width="736" height="1616" alt="A finished task in Review: its agent's last screen, changes, and the Mark done button." loading="lazy"></figure>
           <div>
             <p>When the agent stops, the task moves to <strong>To review</strong>. Nothing is marked done by itself: that's your call.</p>
+            <p>Not now? Move it to <strong>Next</strong> (you'll do it), <strong>Waiting</strong> (it depends on someone) or <strong>Dropped</strong> (you won't), or put it off with <strong>Later</strong> (right-click or <kbd>z</kbd>): tomorrow, next week, a day you type, or <em>someday</em>. It waits in a folded <em>Later</em> section and comes back on its day with a notification.</p>
             <p>In the detail, under <strong>Changes</strong>:</p>
             <ul>
               <li><strong>Show changes</strong> opens Herdr's diff panel for the task's folder.</li>
@@ -164,6 +166,7 @@ cd herdr-tasker
 
       <section class="step" id="keys">
         <h2>Keys and settings</h2>
+        <p>Clicking a task in the list shows it in the detail and brings its agent's tab (or its terminal) to the front.</p>
         <p>With the keyboard in the list (<kbd>cmd</kbd> <kbd>j</kbd>):</p>
         <table class="keys">
           <tr><td><kbd>j</kbd> <kbd>k</kbd></td><td>move down and up</td></tr>
@@ -173,6 +176,8 @@ cd herdr-tasker
           <tr><td><kbd>n</kbd> <kbd>e</kbd></td><td>new task, edit task</td></tr>
           <tr><td><kbd>l</kbd> <kbd>w</kbd></td><td>start an agent, start it in a worktree</td></tr>
           <tr><td><kbd>r</kbd></td><td>resume the task's last agent conversation</td></tr>
+          <tr><td><kbd>i</kbd></td><td>open the task's detail</td></tr>
+          <tr><td><kbd>z</kbd></td><td>later: put it off until a day, or someday</td></tr>
           <tr><td><kbd>/</kbd></td><td>find a task</td></tr>
           <tr><td><kbd>tab</kbd></td><td>switch between Now and Projects</td></tr>
         </table>
@@ -183,10 +188,12 @@ cd herdr-tasker
           <div>
             <p>The gear at the right of the status bar opens the settings:</p>
             <ul>
+              <li><strong>Now and Projects</strong>: one list with tabs, or <em>stacked</em>, both at once, one above the other (drag the line between them). Stacked, <kbd>tab</kbd> moves between them.</li>
               <li><strong>Doing limit</strong>: how many tasks can be in progress before the status bar warns you.</li>
+              <li><strong>Reminders</strong>: a notification when a task you put off comes back, and once a day for what's due or late.</li>
               <li><strong>Stalled after</strong>: days without movement before a task shows under <em>Stalled</em>.</li>
               <li><strong>Agent to start</strong>: which of your installed agents <em>Start agent</em> runs.</li>
-              <li><strong>Plan usage</strong>: Claude Code's and Codex's limits in the status bar, on or off.</li>
+              <li><strong>Plan usage</strong>: Claude Code's and Codex's limits in the status bar; off until you turn it on (it starts your <code>claude</code> CLI for a moment every few minutes).</li>
             </ul>
             <p>That's the whole loop. Next, the <a href="examples.html">examples</a> show workflows built on it.</p>
           </div>

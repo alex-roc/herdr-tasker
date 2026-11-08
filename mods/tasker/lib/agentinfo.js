@@ -149,6 +149,7 @@ export class AgentInfo {
     if (!due.length) return;
     for (const t of due) this.c.busy[t.address] = now;
     cx.spawn(async (cx) => {
+      let changed = false;
       for (const t of due) {
         const pid = t.foreground.pid;
         const on = t.address.includes("/") ? t.address.split("/")[0] : null;
@@ -156,11 +157,12 @@ export class AgentInfo {
         try {
           info = kind(t) === "claude" ? await claude(pid, on) : await codex(pid, t.foreground.cwd ?? t.cwd, on);
         } catch {}
-        if (info) this.c.info[t.address] = info;
+        if (info && JSON.stringify(info) !== JSON.stringify(this.c.info[t.address])) { this.c.info[t.address] = info; changed = true; }
         this.c.seen[t.address] = { pid, status: word(t), at: Date.now() };
         delete this.c.busy[t.address];
       }
-      cx.notify();
+      // Redraws only for news: every redraw of a mod redraws the whole window.
+      if (changed) cx.notify();
     });
   }
 }

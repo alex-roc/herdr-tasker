@@ -6,6 +6,10 @@ export const S = {
   // Views and sections
   now: "Now",
   projects: "Projects",
+  listsLayout: "Now and Projects",
+  listsLayoutHint: "One list with tabs, or both at once, one above the other (drag the line between them).",
+  listsTabs: "Tabs",
+  listsStacked: "Stacked",
   needsYou: "Needs you",
   toReview: "To review",
   working: "Working",
@@ -97,6 +101,7 @@ export const S = {
   nextStep: "Next step",
   nextStepPlaceholder: "The very next action",
   notes: "Notes",
+  notesHint: "Context, details, how it should be done: the agent gets it with the title",
   none: "—",
 
   // Project form
@@ -104,7 +109,39 @@ export const S = {
   namePlaceholder: "Project name",
   color: "Color",
   repos: "Repositories",
-  reposHint: "Repositories open in Herdr. Tick the ones that belong to this project.",
+  reposHint: "Tick the ones that belong to this project, or add a folder that isn't open in Herdr.",
+  addFolder: "Add folder",
+  projectMenu: "Project menu",
+  // Later
+  showDetails: "Details",
+  detailsToggle: "Task panel (cmd-i)",
+  later: "Later",
+  laterHint: "Put it off: it leaves Now and comes back on that day (z)",
+  laterTomorrow: "Tomorrow",
+  laterNextWeek: "Next week",
+  laterSomeday: "Someday",
+  laterPick: "Pick…",
+  laterTitle: (title) => `Later: ${title}`,
+  laterPlaceholder: "tomorrow, fri, +3d, 2w, 12-24, someday",
+  laterBad: "Not a day tasker understands",
+  laterPast: "Pick a day after today",
+  laterUntil: (label) => (label === "someday" ? "Later · someday" : `Later · back ${label}`),
+  laterSave: "Put off",
+  bringBack: "Bring back",
+  backTitle: (n) => (n === 1 ? "Back from Later" : `${n} tasks back from Later`),
+  dueTitle: (late, n) => (late ? (n === 1 ? "A task is late" : `${n} tasks are late or due`) : n === 1 ? "Due today" : `${n} tasks due today`),
+  reminders: "Reminders",
+  remindersHint: "A notification when a task you put off comes back, and once a day for what's due or late.",
+  closeRepo: "Close repo",
+  closeProject: "Close project",
+  closeTitle: (name) => `Close ${name}?`,
+  closeBody: (spaces, agents) => `Closes ${spaces === 1 ? "its space" : `its ${spaces} spaces`} in Herdr and ends their terminals${agents ? ` and ${agents === 1 ? "1 agent" : `${agents} agents`}` : ""}. Tasks stay; an agent's conversation can be resumed.`,
+  closeIt: "Close",
+  projectTerminal: "New terminal in the project",
+  projectTaskHint: "New task for the whole project (its agent works across every repository)",
+  editProjectItem: "Edit project",
+  projectNoRepos: "No repositories yet: edit the project to add some.",
+  addFolderPrompt: "A repository for this project",
   inProject: (name) => `in ${name}`,
 
   // Settings
@@ -184,10 +221,14 @@ export const S = {
   keptBranch: (b) => `Kept branch ${b}: it has commits not merged yet.`,
 
   // What an agent gets
-  prompt: (task) => [
+  // `project`: { name, repos } when the task is in a project with repositories.
+  prompt: (task, project = null) => [
     task.title,
     task.next_step ? `Next step: ${task.next_step}` : "",
     task.notes ? `Notes:\n${task.notes}` : "",
+    project?.repos?.length && (!task.repo || project.repos.some((r) => r !== task.repo))
+      ? `This task is part of the project "${project.name}", which spans these repositories:\n${project.repos.map((r) => `- ${r}${r === task.repo ? " (this task's)" : ""}`).join("\n")}${task.repo ? "" : "\nWork in whichever of them the task needs: you have access to all of them."}`
+      : "",
     task.issue ? `${task.issue.source === "linear" ? `Linear issue ${task.issue.number}` : `GitHub issue #${task.issue.number}`}: ${task.issue.url}${task.issue.body ? `\n\n${task.issue.body}` : ""}` : "",
   ].filter(Boolean).join("\n\n"),
   prRequest: "Please commit your work, push the branch and open a pull request with gh. Summarize what changed and how it was tested.",

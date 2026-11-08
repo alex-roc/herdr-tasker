@@ -110,9 +110,30 @@ export function onScreen(id) {
   const walk = (n) => {
     if (!n || n.hidden) return false;
     if (n.id === id) return true;
-    return (n.children ?? []).some(walk);
+    return shownChildren(n).some(walk);
   };
   return walk(layout());
+}
+
+// A stack shows one child: the active one, else its first.
+export function shownChildren(n) {
+  const kids = n?.children ?? [];
+  if (n?.type !== "stack") return kids;
+  return [kids.find((c) => c.id === n.active) ?? kids[0]].filter(Boolean);
+}
+
+// The views of the tasker lists on screen, in layout order: [null] for the one with
+// Now/Projects tabs, ["now", "projects"] for the two side by side.
+export function shownLists() {
+  const out = [];
+  const walk = (n) => {
+    if (!n || n.hidden) return;
+    const c = n.content;
+    if (c?.mod === "tasker" && (c.props?.role ?? "sidebar") === "sidebar" && !c.props?.dialog) out.push(c.props?.view ?? null);
+    shownChildren(n).forEach(walk);
+  };
+  walk(layout());
+  return out;
 }
 
 export function programIcon(p, size, color) {

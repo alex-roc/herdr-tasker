@@ -15,7 +15,8 @@ layout reloads it within a second of any save, from any program.
 2. **New task**: `id` (any unique string, e.g. `agent-` + a timestamp) and `title` are enough.
    Usual extras: `project` (a project's `id`), `repo` (`~/path/to/repo`), `status` (`inbox` for an
    idea, `next` for planned work), `priority` (1 high, 2 normal, 3 low), `due` (`YYYY-MM-DD`; words
-   like "tomorrow" are dropped), `next_step`, `notes`.
+   like "tomorrow" are dropped), `next_step`, `notes`. To put a task off, set `snooze` to a day
+   (`YYYY-MM-DD`: it comes back then) or `"someday"`; `null` brings it back.
 3. **Status** is one of `inbox`, `next`, `doing`, `waiting`, `review`, `done`, `dropped`. When you
    change it, also set `updated` (ms since the epoch) and append `{ "s": "<status>", "at": <ms> }` to
    `history`, so the person sees when it moved. For `done`, set `done_at` too.

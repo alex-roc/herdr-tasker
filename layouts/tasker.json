@@ -40,15 +40,58 @@
           }
         },
         {
-          "id": "tasker-sidebar",
-          "type": "block",
+          "id": "tasker-lists",
+          "type": "stack",
+          "active": "tasker-sidebar",
           "min": 120,
-          "content": {
-            "mod": "tasker",
-            "props": {
-              "role": "sidebar"
+          "children": [
+            {
+              "id": "tasker-sidebar",
+              "type": "block",
+              "content": {
+                "mod": "tasker",
+                "props": {
+                  "role": "sidebar"
+                }
+              }
+            },
+            {
+              "id": "tasker-split",
+              "type": "column",
+              "children": [
+                {
+                  "id": "tasker-projects",
+                  "type": "block",
+                  "size": {
+                    "weight": 1
+                  },
+                  "min": 90,
+                  "content": {
+                    "mod": "tasker",
+                    "props": {
+                      "role": "sidebar",
+                      "view": "projects"
+                    }
+                  }
+                },
+                {
+                  "id": "tasker-now",
+                  "type": "block",
+                  "size": {
+                    "weight": 1
+                  },
+                  "min": 90,
+                  "content": {
+                    "mod": "tasker",
+                    "props": {
+                      "role": "sidebar",
+                      "view": "now"
+                    }
+                  }
+                }
+              ]
             }
-          }
+          ]
         },
         {
           "id": "sidebar-footer",

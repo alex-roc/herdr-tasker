@@ -87,6 +87,7 @@ export class Usage {
     const due = Object.keys(SOURCES).filter((app) => !busy(this.c, app, now) && (force || now - (this.c.seen[app] ?? 0) > EVERY));
     if (!due.length) return;
     for (const app of due) { this.c.busy[app] = now; this.c.seen[app] = now; }
+    const before = JSON.stringify(this.c.info);
     cx.spawn(async (cx) => {
       await Promise.all(due.map(async (app) => {
         try {
@@ -98,7 +99,7 @@ export class Usage {
         }
         delete this.c.busy[app];
       }));
-      cx.notify();
+      if (JSON.stringify(this.c.info) !== before) cx.notify();
     });
   }
 }

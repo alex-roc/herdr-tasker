@@ -1,5 +1,52 @@
 # Changelog
 
+## 1.2.0 — 2026-11-08
+
+### New
+- **Later**: put a task off until a day (tomorrow, next week, `fri`, `+3d`, …) or *someday*, from its
+  menu, the detail or `z`. It leaves Now's lists for a folded *Later* section and comes back on its
+  day; an agent that asks for you still shows. Starting, finishing or dropping it ends the wait.
+- **Reminders**: a notification when a task comes back from Later, and once a day for what's due or
+  late; clicking it shows the task. On by default, off in the settings. `tasker.select:<id>` (scripts,
+  notifications) opens the detail on that task.
+- **Now and Projects stacked**: a setting shows both lists at once, one above the other (as Herdr's
+  spaces and agents), or one with tabs as before. The layout holds both in a `tasker-lists` stack; a
+  list block takes `"view": "now" | "projects"` in its props for layouts of your own. Projects is
+  on top, Now below; `tab` moves between them, and Now takes the layout's keys.
+- **Projects as a place to work**: a project has its own terminal, task and menu. An agent for the
+  whole project (from its menu, or on a task with a project and no repository) starts in its first
+  repository with the others added (`--add-dir`: Claude Code and Codex) and is told which they are;
+  a task in one repository of a bigger project hears of the others.
+- **Close a repository or a project**: from its menu, with one question, closes its spaces in Herdr.
+- Terminals and agents in no task show the same second line as a task: model, effort, context, and
+  how long in their state.
+- **Add folder…** in the project form: attach any local repository, not only those open in Herdr.
+
+### Changed
+- **The task panel stays as you leave it**: selecting a task no longer opens it. Open it when you
+  want more with the panel button in the status bar, `cmd-i`, `i`, or *Details* in a task's menu
+  (a card clicked on the board still opens it). Picking a task in Find goes to its agent, as a click.
+- A finished agent sends its task to *To review* only from Doing: a task you put in Next, Waiting or
+  Inbox stays there.
+- **Plan usage is off by default** (it starts your `claude` CLI for a moment every few minutes); turn
+  it on in the settings.
+- Right-clicking a project opens its menu; *Edit project…* is in it.
+- **Lighter on the window**: every redraw of a mod redraws the whole window, so tasker now redraws
+  only for news. The detail panel looks again every 15 s without drawing, and draws only when the
+  screen, diff or PR changed; it doesn't read an agent's screen while its terminal has the focus
+  (you're typing in it). Agent info, repository state and plan usage redraw only when they changed.
+- Clicking a task in the list (Now or Projects) brings its agent's tab to the front, or a terminal of
+  the task when it has no agent.
+
+### Fixed
+- **Delete task** didn't delete, and the same with the other actions of the task menu (status,
+  priority, Start, Resume), *Move to project* in a repository's menu, *Make task* on an agent in no
+  task and *Add to task…*: the dialog closed before it wrote, and closing drops its work.
+- A change made in the detail panel (priority, status, …) showed only after something else moved:
+  the copy of the mod that wrote a change now redraws too.
+- The task form says what *Notes* is for (context and instructions the agent gets with the title),
+  with room for more of it.
+
 ## 1.1.0 — 2026-11-07
 
 ### New

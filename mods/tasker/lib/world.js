@@ -3,7 +3,7 @@
 
 import { place } from "./git.js";
 import { report, word } from "./agentinfo.js";
-import { tilde, untilde, base, OPEN, RANK, byUrgency } from "./util.js";
+import { tilde, untilde, base, OPEN, RANK, byUrgency, isLater } from "./util.js";
 import { S } from "../strings.js";
 
 // Live sub-agents of `addr`, depth first.
@@ -83,16 +83,22 @@ export function nowView(w, data) {
   const staleMs = (data.settings.stale_days ?? 3) * 86400000;
   const used = new Set();
   const take = (list) => { list.forEach((x) => used.add(x.t.id)); return list; };
+  // An agent asking or working shows even on a task put off; the rest of a Later task waits in Later.
+  const free = (x) => !used.has(x.t.id) && !isLater(x.t);
   const needs = take(open.filter((x) => x.top === "blocked"));
-  const review = take(open.filter((x) => !used.has(x.t.id) && (x.t.status === "review" || x.top === "done")));
+  // An agent that finished asks for a review only of work in progress: Next, Waiting or Inbox is your call.
+  const review = take(open.filter((x) => free(x) && (x.t.status === "review" || (x.top === "done" && x.t.status === "doing"))));
   const working = take(open.filter((x) => !used.has(x.t.id) && x.top === "working"));
-  const stalled = take(open.filter((x) => !used.has(x.t.id) && ["doing", "waiting"].includes(x.t.status) && now - (x.t.updated ?? 0) > staleMs));
-  const next = open.filter((x) => !used.has(x.t.id) && ["next", "doing", "waiting"].includes(x.t.status)).sort((a, b) => byUrgency(a.t, b.t));
-  const inbox = open.filter((x) => !used.has(x.t.id) && x.t.status === "inbox").sort((a, b) => byUrgency(a.t, b.t));
+  const stalled = take(open.filter((x) => free(x) && ["doing", "waiting"].includes(x.t.status) && now - (x.t.updated ?? 0) > staleMs));
+  const next = open.filter((x) => free(x) && ["next", "doing", "waiting"].includes(x.t.status)).sort((a, b) => byUrgency(a.t, b.t));
+  const inbox = open.filter((x) => free(x) && x.t.status === "inbox").sort((a, b) => byUrgency(a.t, b.t));
+  // Soonest back first; someday last.
+  const later = open.filter((x) => !used.has(x.t.id) && isLater(x.t))
+    .sort((a, b) => (a.t.snooze === "someday") - (b.t.snooze === "someday") || String(a.t.snooze).localeCompare(String(b.t.snooze)) || byUrgency(a.t, b.t));
   const loose = (s) => w.untracked.filter((u) => u.top === s);
   // Agents in no task that need nothing now: the "Not in a task" inbox.
   const idle = w.untracked.filter((u) => u.agents.length && !["blocked", "done", "working"].includes(u.top));
-  return { needs, review, working, stalled, next, inbox, untrackedNeeds: loose("blocked"), untrackedDone: loose("done"), untrackedWorking: loose("working"), untrackedIdle: idle };
+  return { needs, review, working, stalled, next, inbox, later, untrackedNeeds: loose("blocked"), untrackedDone: loose("done"), untrackedWorking: loose("working"), untrackedIdle: idle };
 }
 
 // The Projects outline: project → repo → tasks (+ untracked tabs).

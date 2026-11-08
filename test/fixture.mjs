@@ -16,8 +16,11 @@ export function cx() {
   const c = {
     notified: 0, tasks: [], errors: [], stopped: 0,
     notify() { c.notified++; },
+    // As in Herdr: closing an overlay drops that copy of the mod, and work it spawned
+    // that hasn't run yet never runs.
     spawn(fn) {
-      const p = Promise.resolve().then(() => fn(c)).catch((e) => { c.errors.push(e); });
+      const p = Promise.resolve().then(() => { if (H.props?.overlay && H.closed.includes(H.props.overlay)) return; return fn(c); })
+        .catch((e) => { c.errors.push(e); });
       c.tasks.push(p);
       return p;
     },

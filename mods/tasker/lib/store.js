@@ -11,7 +11,7 @@ import { S } from "../strings.js";
 export const DIR = () => `${appHome()}/data/tasker`;
 export const FILE = () => `${DIR()}/tasks.json`;
 
-export const DEFAULTS = { wip: 3, stale_days: 3, agent: "claude", usage: true };
+export const DEFAULTS = { wip: 3, stale_days: 3, agent: "claude", usage: false, reminders: true };
 const EMPTY = () => ({ version: 1, settings: { ...DEFAULTS }, projects: [], tasks: [] });
 
 const str = (v) => (typeof v === "string" ? v : v == null ? "" : String(v));
@@ -40,6 +40,9 @@ export function cleanTask(t) {
     next_step: str(t.next_step),
     notes: str(t.notes),
     issue: t.issue && typeof t.issue === "object" && t.issue.number != null ? { ...t.issue, url: str(t.issue.url) } : null,
+    // Later: until a day, or "someday"; and the last day a due reminder went out.
+    snooze: t.snooze === "someday" || /^\d{4}-\d{2}-\d{2}$/.test(str(t.snooze)) ? t.snooze : null,
+    reminded: /^\d{4}-\d{2}-\d{2}$/.test(str(t.reminded)) ? t.reminded : null,
     worktree: strOrNull(t.worktree),
     branch: strOrNull(t.branch),
     tabs: list(t.tabs).filter((x) => typeof x === "string"),
@@ -79,7 +82,8 @@ export function parse(text) {
   settings.wip = Math.max(1, Math.round(num(settings.wip, DEFAULTS.wip)));
   settings.stale_days = Math.max(1, Math.round(num(settings.stale_days, DEFAULTS.stale_days)));
   settings.agent = str(settings.agent) || DEFAULTS.agent;
-  settings.usage = settings.usage !== false;
+  settings.usage = settings.usage === true; // off unless turned on: it starts a `claude` now and then
+  settings.reminders = settings.reminders !== false;
   const obj = (x) => x && typeof x === "object" && !Array.isArray(x);
   return {
     ...d,
@@ -119,9 +123,11 @@ export class Store {
     this.loaded = true;
   }
 
-  // Reloads whenever the file changes (another copy, an agent, a hand edit).
+  // Reloads whenever the file changes (another copy, an agent, a hand edit), and
+  // redraws after its own writes too: the watch can't tell those apart from no change.
   watch(cx) {
     cx.spawn(async (cx) => {
+      this.changed = () => cx.notify();
       try { await fs.mkdir(DIR(), { recursive: true }); } catch {}
       await this.load();
       cx.notify();
@@ -146,23 +152,36 @@ export class Store {
         current = await readTextFile(FILE());
         data = parse(current);
       } catch (e) {
-        this.error = S.storeBad(e?.message ?? e);
+        this.fail(S.storeBad(e?.message ?? e));
         return false;
       }
       if (fn(data) === false) return false;
       const text = JSON.stringify(data, null, 1) + "\n";
+      let written = false;
       try {
         await writeTextFile(FILE(), text, current);
-        this.data = data;
-        this.text = text;
-        this.error = null;
-        return true;
+        written = true;
       } catch {
         // Someone wrote in between: read again.
       }
+      if (written) {
+        this.data = data;
+        this.text = text;
+        this.error = null;
+        this.changed?.();
+        return true;
+      }
     }
-    this.error = S.storeBusy;
+    this.fail(S.storeBusy);
     return false;
+  }
+
+  // Shows what went wrong, redrawing only when it's news: a render that retries a
+  // failing write must not loop.
+  fail(error) {
+    if (this.error === error) return;
+    this.error = error;
+    this.changed?.();
   }
 
   task(id) {
@@ -209,6 +228,8 @@ export function setStatus(t, status, now = Date.now()) {
   t.status = status;
   t.updated = now;
   t.done_at = status === "done" ? now : status === "dropped" ? t.done_at : null;
+  // Started, finished or dropped: no longer put off.
+  if (["doing", "done", "dropped"].includes(status)) t.snooze = null;
   (t.history ??= []).push({ s: status, at: now });
   if (t.history.length > 60) t.history.splice(0, t.history.length - 60);
   return true;

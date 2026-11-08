@@ -2,17 +2,18 @@
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex, TextareaState, Textarea } from "gpui-base";
-import { theme, run, shared, hc, home, window } from "herdr";
+import { theme, run, shared, hc, home, window, focused } from "herdr";
 import { S } from "./strings.js";
 import { setStatus } from "./lib/store.js";
 import { diffStat } from "./lib/git.js";
 import { send, pullRequest, openUrl } from "./lib/actions.js";
-import { RANK, duration, shortModel, kilo, base, untilde, STATUSES, issueLabel } from "./lib/util.js";
+import { RANK, duration, shortModel, kilo, base, untilde, STATUSES, issueLabel, isLater, laterLabel } from "./lib/util.js";
 import { STATUS_ICON, statusIcon, statusColor, prioColor, dueChip, agentMark, button, chip, programIcon, icon, onScreen, agentFor } from "./lib/ui.js";
 import { openDialog } from "./lib/open.js";
 
 const LOOK_EVERY = 15000; // screen and diff, while shown and the window is in front
 const PR_EVERY = 60000; // gh goes to the network
+const CLOCK_EVERY = 60000; // durations ("in Doing for 5m")
 
 export const Detail = {
   initDetail(cx) {
@@ -20,11 +21,18 @@ export const Detail = {
     this.feedback = TextareaState.new({ placeholder: S.feedbackPlaceholder, rows: 3 });
     this.feedback.on("change", (_e, cx) => { this.feedbackText = this.feedback.value(); cx.notify(); });
     this.feedbackText = "";
-    cx.timer.every(LOOK_EVERY, (cx) => { if (window()?.active && onScreen("tasker-detail")) { this.det.at = 0; cx.notify(); } });
+    // Looks again without drawing: the panel redraws only when what it found changed
+    // (every redraw of a mod redraws the whole window, terminals included).
+    cx.timer.every(LOOK_EVERY, (cx) => {
+      const x = this.world?.taskById.get(shared("tasker.selected"));
+      if (x && window()?.active) { this.det.at = 0; this.lookUp(cx, x); }
+    });
+    cx.timer.every(CLOCK_EVERY, (cx) => { if (window()?.active && onScreen("tasker-detail")) cx.notify(); });
   },
 
   // Screen, diff and PR of the shown task: when it changes, then every few seconds,
-  // and never while the panel is hidden or the window is in the background.
+  // and never while the panel is hidden or the window is in the background. The
+  // agent's screen isn't read while its terminal has the focus: it's in view already.
   lookUp(cx, x) {
     const id = x.t.id;
     const e = this.leadOf(x);
@@ -37,15 +45,18 @@ export const Detail = {
     this.det.busy = true;
     const h = home();
     const where = x.t.worktree ? untilde(x.t.worktree, h) : e?.term?.cwd ?? (x.t.repo ? untilde(x.t.repo, h) : null);
+    const shown = (d) => JSON.stringify([d.screen, d.where, d.diff, d.pr]);
+    const before = shown(this.det);
+    const inView = Boolean(e?.a.pane) && focused()?.pane === e.a.pane;
     cx.spawn(async (cx) => {
       try {
         const local = e && !e.a.address.includes("/");
         const [screen, diff] = await Promise.all([
-          local ? hc(["read", e.a.address, "--lines", "8"]) : null,
+          local && !inView ? hc(["read", e.a.address, "--lines", "8"]) : null,
           where ? diffStat(where, null) : null,
         ]);
         // The last lines with text, without hc's own notes.
-        this.det.screen = screen?.code === 0 ? (screen.stdout ?? "").split("\n").filter((l) => l.trim() && !l.startsWith("[hc]")).slice(-8) : null;
+        if (!inView) this.det.screen = screen?.code === 0 ? (screen.stdout ?? "").split("\n").filter((l) => l.trim() && !l.startsWith("[hc]")).slice(-8) : null;
         this.det.where = where;
         this.det.diff = diff;
         if (where && ["review", "doing", "done"].includes(x.t.status) && Date.now() - (this.det.prAt ?? 0) > PR_EVERY) {
@@ -54,7 +65,7 @@ export const Detail = {
         }
       } catch {}
       this.det.busy = false;
-      cx.notify();
+      if (shown(this.det) !== before) cx.notify();
     });
   },
 
@@ -138,6 +149,9 @@ export const Detail = {
       .when(!e, (el) => el.child(button(t, "d-launch", S.start, (_e, cx) => this.launch(cx, task, false), { primary: !last, small: true, iconName: "play" }))
         .when(Boolean(task.repo) && !task.worktree, (el) => el.child(button(t, "d-launch-wt", S.startWorktree, (_e, cx) => this.launch(cx, task, true), { small: true, iconName: "git-fork", tooltip: S.startWorktreeHint }))))
       .when(Boolean(e), (el) => el.child(button(t, "d-focus", S.focusAgent, () => run("pane.focus", { pane: e.a.pane }), { primary: true, small: true, iconName: "arrow-right" })))
+      // Later: put it off, or bring it back now.
+      .when(isLater(task), (el) => el.child(button(t, "d-back", S.bringBack, (_e, cx) => this.upd(cx, task.id, (y) => { y.snooze = null; }), { small: true, iconName: "rotate-ccw" })))
+      .when(!isLater(task) && !["done", "dropped"].includes(task.status), (el) => el.child(button(t, "d-later", `${S.later}…`, () => openDialog("later", { task: task.id }), { small: true, iconName: "moon", tooltip: S.laterHint })))
       .when(task.status === "review", (el) => el.child(button(t, "d-done", S.markDone, (_e, cx) => this.upd(cx, task.id, (y) => setStatus(y, "done")), { small: true, iconName: "circle-check" })))
       .when(Boolean(det.where), (el) => el.child(button(t, "d-changes", S.showChanges, () => { run("layout.select", { stack: "panel-body", child: "changes" }); run("layout.show", { id: "panel" }); }, { small: true, iconName: "git-pull-request" })));
 
@@ -181,6 +195,7 @@ export const Detail = {
       .child(h_flex().pt(6).gap(6).items_center().flex_wrap().text_size(11).text_color(t.dim)
         .when(Boolean(task.repo), (el) => el.child(div().child(base(task.repo))))
         .when(Boolean(due), (el) => el.child(due))
+        .when(isLater(task), (el) => el.child(chip(t, S.laterUntil(laterLabel(task.snooze)), t.dim)))
         .when(Boolean(task.estimate), (el) => el.child(chip(t, S.estimateChip(task.estimate), t.dim)))
         .when(Boolean(task.issue?.url), (el) => el.child(div().id("d-issue").text_color(t.accent).cursor_pointer().hover((s) => s.opacity(0.8))
           .on_click(() => openUrl(task.issue.url)).child(issueLabel(task.issue)))))

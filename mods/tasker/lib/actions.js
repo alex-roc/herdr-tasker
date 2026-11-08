@@ -42,6 +42,26 @@ function spaceAt(folder) {
   return list.find((s) => s.active) ?? list[0] ?? null;
 }
 
+// An agent that can work across the project's other repositories: Claude Code and
+// Codex take them with --add-dir. Other programs get only the list, in the prompt.
+export function withDirs(argv, dirs) {
+  if (!dirs.length || !/(^|\/)(claude|codex)$/.test(argv[0] ?? "")) return argv;
+  return [...argv, ...dirs.flatMap((d) => ["--add-dir", d])];
+}
+
+// Where project-wide work runs: its first repository, with the rest added.
+export function projectPlace(project, h = home()) {
+  const repos = (project?.repos ?? []).map((r) => untilde(r, h));
+  return repos.length ? { folder: repos[0], others: repos.slice(1), all: repos } : null;
+}
+
+// A terminal or an agent (argv) for the whole project.
+export function openInProject(project, argv) {
+  const at = projectPlace(project);
+  if (!at) return;
+  openHere(tilde(at.folder, home()), argv ? withDirs(argv, at.others) : undefined);
+}
+
 // A terminal (or an agent, with argv) in a repo, outside any task: a tab in the
 // space already there, else a new space.
 export function openHere(repoKey, argv) {
@@ -72,12 +92,16 @@ async function ensureWorktree(task, others = []) {
 // tied to the task: { task, space | null, beforeTabs, beforeSpaces, at }.
 export async function launch(store, task, { worktree = false, resume = null } = {}) {
   const h = home();
-  const argv = resume ? await resumeArgv(resume) : await agentArgv(store.data.settings.agent);
+  const project = task.project ? store.data.projects.find((p) => p.id === task.project) : null;
+  // A task of the whole project (no repository of its own) works across all of them,
+  // resumed too: the other repositories are added again.
+  const wide = !task.repo ? projectPlace(project, h) : null;
+  let argv = resume ? await resumeArgv(resume) : await agentArgv(store.data.settings.agent);
   // A resumed agent already has its conversation: no first message.
-  const prompt = resume ? null : S.prompt(task);
+  const prompt = resume ? null : S.prompt(task, project);
   const beforeSpaces = new Set(spaces().map((s) => s.id));
   const beforeTabs = new Set(spaces().flatMap((s) => (s.tabs ?? []).map((t) => t.id)));
-  let folder = resume?.cwd ? untilde(resume.cwd, h) : task.worktree ? untilde(task.worktree, h) : task.repo ? untilde(task.repo, h) : null;
+  let folder = resume?.cwd ? untilde(resume.cwd, h) : task.worktree ? untilde(task.worktree, h) : task.repo ? untilde(task.repo, h) : wide?.folder ?? null;
   const patch = {};
   if (worktree && task.repo) {
     const wt = await ensureWorktree(task, store.data.tasks);
@@ -85,6 +109,7 @@ export async function launch(store, task, { worktree = false, resume = null } = 
     patch.worktree = tilde(wt.path, h);
     patch.branch = wt.branch;
   }
+  if (wide) argv = withDirs(argv, wide.all.filter((d) => d !== folder));
   if (!folder) {
     // No repo: where the person is now.
     const f = focused();

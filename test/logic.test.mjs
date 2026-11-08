@@ -4,9 +4,9 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { H } from "herdr";
-import { parseDue, dueLabel, slug, shortModel, byUrgency, duration } from "../mods/tasker/lib/util.js";
-import { parse, cleanTask, Store } from "../mods/tasker/lib/store.js";
+import { H, command } from "herdr";
+import { parseDue, dueLabel, slug, shortModel, byUrgency, duration, parseLater } from "../mods/tasker/lib/util.js";
+import { parse, cleanTask, Store, setStatus } from "../mods/tasker/lib/store.js";
 import { build, nowView, projectTree } from "../mods/tasker/lib/world.js";
 import { arrived, launch } from "../mods/tasker/lib/actions.js";
 import { AgentInfo } from "../mods/tasker/lib/agentinfo.js";
@@ -88,6 +88,19 @@ test("store: a fresh home starts empty and saves", async () => {
   assert.equal(s.data.tasks.length, 0);
   assert.equal(await s.update((d) => { d.tasks.push(task({ id: "x" })); }), true);
   assert.equal(JSON.parse(H.files.get(FILE())).tasks[0].id, "x");
+});
+
+test("store: a file that can't be read is said once, not redrawn over and over", async () => {
+  world();
+  const s = new Store();
+  await s.load();
+  let draws = 0;
+  s.changed = () => draws++;
+  H.files.set(FILE(), "{ broken");
+  assert.equal(await s.update((d) => { d.tasks.push(task({ id: "x" })); }), false);
+  assert.equal(await s.update((d) => { d.tasks.push(task({ id: "x" })); }), false);
+  assert.equal(draws, 1);
+  assert.match(s.error, /can't be read/);
 });
 
 test("store: a write that races another one is retried, not lost", async () => {
@@ -181,6 +194,31 @@ test("launch: opens the agent in the repo's space and marks the task doing", asy
   assert.match(args.task, /^Write docs/);
   assert.equal(s.task("next1").status, "doing");
   assert.equal(p.name, "Write docs");
+});
+
+test("launch a task of the whole project: in its first repo, the others added, all of them named", async () => {
+  world();
+  const s = new Store();
+  await s.load();
+  await launch(s, s.task("next2")); // project Website, no repo of its own
+  const [, args] = H.runs.at(-1);
+  assert.equal(args.space, "sp2", "the space of its first repo");
+  assert.deepEqual(args.argv, ["claude", "--add-dir", "/home/me/dev/docs"]);
+  assert.match(args.task, /project "Website"[\s\S]*- ~\/dev\/web[\s\S]*- \/home\/me\/dev\/docs[\s\S]*access to all of them/);
+  // A task with its own repo hears of the others, without the extra access.
+  await launch(s, s.task("next1"));
+  assert.deepEqual(H.runs.at(-1)[1].argv, ["claude"]);
+  assert.match(H.runs.at(-1)[1].task, /- ~\/dev\/web \(this task's\)/);
+});
+
+test("resume a task of the whole project: the other repositories are added again", async () => {
+  world();
+  const s = new Store();
+  await s.load();
+  await launch(s, s.task("next2"), { resume: { app: "claude", id: "abc", cwd: "~/dev/web", at: 1 } });
+  const [, args] = H.runs.at(-1);
+  assert.deepEqual(args.argv, ["claude", "--resume", "abc", "--add-dir", "/home/me/dev/docs"]);
+  assert.equal(args.task, undefined, "no first message");
 });
 
 test("launch in a worktree: same title, its own branch", async () => {
@@ -281,6 +319,179 @@ test("detail: nothing is looked up while the panel is hidden", async () => {
   assert.ok(H.execLog.some(([c]) => c === "gh"));
 });
 
+test("Now and Projects stacked: each list its own view, the books kept once, key commands acted on once", async () => {
+  world();
+  // The layout shows the two lists, one above the other.
+  const find = (n, id) => (n.id === id ? n : (n.children ?? []).map((c) => find(c, id)).find(Boolean));
+  find(H.layout, "tasker-lists").active = "tasker-split";
+  const mk = async (view) => {
+    H.props = { role: "sidebar", view };
+    const v = new Tasker();
+    v.c = cx();
+    v.init(H.props, v.c);
+    await until(() => v.store.loaded);
+    await settle();
+    return v;
+  };
+  // Projects above, Now below (the layout's order).
+  const projects = await mk("projects");
+  const now = await mk("now");
+  const ids = (v) => walk(v.render(cx())).map((n) => n.id).filter(Boolean);
+  assert.ok(ids(now).includes("sec-needs") && !ids(now).includes("v-projects"), "Now alone, no tabs");
+  assert.ok(ids(projects).some((i) => i.startsWith("p:")) && !ids(projects).includes("sec-needs"), "Projects alone");
+  // An agent works, then stops: its time is added once, not once per list.
+  const d = JSON.parse(H.files.get(FILE()));
+  d.tasks.find((t) => t.id === "next1").tabs = ["tb5"];
+  d.tasks.find((t) => t.id === "next1").agent_ms = 0;
+  H.files.set(FILE(), JSON.stringify(d));
+  await now.store.load(); await projects.store.load();
+  H.agents.push({ address: "t1q", pane: "p5", space: "sp2", tab: "tb5", status: "working", program: { key: "claude", name: "Claude Code" }, title: "a" });
+  now.render(cx()); projects.render(cx());
+  await settle();
+  globalThis.__tasker.books.info.workSince.t1q -= 60000;
+  H.agents.at(-1).status = "done";
+  now.render(cx()); projects.render(cx());
+  await settle();
+  await now.store.load();
+  const ms = now.store.task("next1").agent_ms;
+  assert.ok(ms >= 60000 && ms < 120000, `counted once: ${ms}`);
+  // A key command reaches both lists; only Now acts on it.
+  H.overlays.length = 0;
+  command("jump");
+  await settle();
+  assert.equal(H.overlays.length, 1, "one dialog, not one per list");
+  command("focus");
+  await settle();
+  assert.ok(now.c.focused && !projects.c.focused, "Now takes the keys");
+});
+
+test("Now: a finished agent asks for a review only of work in progress", () => {
+  world();
+  const d = JSON.parse(H.files.get(FILE()));
+  // t4 is done (unseen) on tab tb4: give it to a task in Next.
+  d.tasks.push(task({ id: "later-agent", title: "Parked", status: "next", tabs: ["tb4"] }));
+  const data = parse(JSON.stringify(d));
+  const w = build({ data, sp: H.spaces, ps: H.panes, ag: H.agents, ts: H.terminals, repos: new RepoCache(), h: H.home });
+  const v = nowView(w, data);
+  assert.ok(!v.review.some((x) => x.t.id === "later-agent"), "Next is your call");
+  assert.ok(v.next.some((x) => x.t.id === "later-agent"));
+});
+
+test("Later: put off until a day or someday, out of Now's lists, soonest first", () => {
+  assert.equal(parseLater("someday"), "someday");
+  assert.equal(parseLater("tomorrow", at), "2026-11-08");
+  assert.equal(parseLater("blah"), undefined);
+  assert.equal(parseLater("today", at), null, "today isn't later");
+  assert.equal(parseLater("2020-01-01", at), null);
+  world();
+  const d = JSON.parse(H.files.get(FILE()));
+  d.tasks.find((t) => t.id === "next1").snooze = "someday";
+  d.tasks.find((t) => t.id === "inbox1").snooze = iso(2);
+  d.tasks.find((t) => t.id === "blocked1").snooze = iso(2); // its agent asks: still in Needs you
+  const data = parse(JSON.stringify(d));
+  const w = build({ data, sp: H.spaces, ps: H.panes, ag: H.agents, ts: H.terminals, repos: new RepoCache(), h: H.home });
+  const v = nowView(w, data);
+  const ids = (l) => l.map((x) => x.t.id);
+  assert.deepEqual(ids(v.later), ["inbox1", "next1"]);
+  assert.ok(!ids(v.next).includes("next1") && !ids(v.inbox).includes("inbox1"));
+  assert.ok(ids(v.needs).includes("blocked1"));
+  // Starting it is no longer putting it off.
+  const t = data.tasks.find((x) => x.id === "next1");
+  setStatus(t, "doing");
+  assert.equal(t.snooze, null);
+});
+
+test("Later comes back on its day with one notification, and what's due is told once a day", async () => {
+  world();
+  const d = JSON.parse(H.files.get(FILE()));
+  d.tasks.find((t) => t.id === "next1").snooze = iso(0);
+  H.files.set(FILE(), JSON.stringify(d));
+  const mk = async (view) => {
+    H.props = { role: "sidebar", view };
+    const v = new Tasker();
+    v.init(H.props, cx());
+    await until(() => v.store.loaded);
+    await settle();
+    return v;
+  };
+  const find = (n, id) => (n.id === id ? n : (n.children ?? []).map((c) => find(c, id)).find(Boolean));
+  find(H.layout, "tasker-lists").active = "tasker-split";
+  const a = await mk("projects"), b = await mk("now");
+  H.notes.length = 0;
+  a.render(cx()); b.render(cx());
+  await settle();
+  await a.store.load();
+  assert.equal(a.store.task("next1").snooze, null, "back");
+  const backs = H.notes.filter((n) => /Back from Later/.test(n.title));
+  assert.equal(backs.length, 1, "told once, not once per list");
+  assert.equal(backs[0].action.name, "tasker.select:next1");
+  const dues = H.notes.filter((n) => !/Back from Later/.test(n.title));
+  assert.equal(dues.length, 1);
+  assert.match(dues[0].body, /Add login/);
+  // The next look the same day: nothing new.
+  H.notes.length = 0;
+  a.render(cx()); b.render(cx());
+  await settle();
+  assert.equal(H.notes.length, 0);
+});
+
+test("reminders off: nothing is sent", async () => {
+  world({ settings: { reminders: false } });
+  H.props = { role: "sidebar" };
+  const v = new Tasker();
+  v.init(H.props, cx());
+  await until(() => v.store.loaded);
+  await settle();
+  H.notes.length = 0;
+  v.render(cx());
+  await settle();
+  assert.equal(H.notes.length, 0);
+});
+
+test("detail: looks again without redrawing unless something changed, and skips the screen in view", async () => {
+  world();
+  H.props = { role: "detail" };
+  H.shared["tasker.selected"] = "blocked1";
+  const v = new Tasker();
+  const c = cx();
+  v.init(H.props, c);
+  await until(() => v.store.loaded);
+  await settle();
+  v.render(cx());
+  await settle();
+  assert.ok(H.hcLog.some((a) => a[0] === "read"), "first look reads the screen");
+  // Same answers again: nothing to draw.
+  const lc = cx();
+  v.det.at = 0;
+  v.lookUp(lc, v.world.taskById.get("blocked1"));
+  await settle();
+  assert.equal(lc.notified, 0);
+  // The agent's terminal has the focus: its screen isn't read.
+  H.hcLog.length = 0;
+  H.focused = { pane: v.leadOf(v.world.taskById.get("blocked1")).a.pane };
+  v.det.at = 0;
+  v.lookUp(cx(), v.world.taskById.get("blocked1"));
+  await settle();
+  assert.ok(!H.hcLog.some((a) => a[0] === "read"));
+});
+
+test("detail: a priority picked there is saved and drawn at once", async () => {
+  world();
+  H.props = { role: "detail" };
+  H.shared["tasker.selected"] = "blocked1";
+  const v = new Tasker();
+  const c = cx();
+  v.init(H.props, c);
+  await until(() => v.store.loaded);
+  await settle();
+  const chip = walk(v.render(cx())).find((n) => n.id === "dp-3");
+  const before = c.notified;
+  chip.handlers.on_click({}, cx());
+  await settle();
+  assert.equal(v.store.task("blocked1").priority, 3);
+  assert.ok(c.notified > before, "the copy that wrote redraws");
+});
+
 test("plan usage: Claude's get_usage reply and Codex's logged limits", () => {
   const now = Date.now();
   const c = parseClaude(CLAUDE_USAGE, now);
@@ -300,8 +511,13 @@ test("plan usage: Claude's get_usage reply and Codex's logged limits", () => {
   assert.equal(parseCodex("nothing here"), null);
 });
 
+test("plan usage is off unless turned on", () => {
+  assert.equal(parse("{}").settings.usage, false);
+  assert.equal(parse('{"settings":{"usage":true}}').settings.usage, true);
+});
+
 test("status bar: plan usage shown, colored by the fuller limit, and off when asked", async () => {
-  world();
+  world({ settings: { usage: true } });
   H.props = { role: "status" };
   const v = new Tasker();
   v.init(H.props, cx());

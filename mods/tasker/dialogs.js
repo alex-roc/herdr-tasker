@@ -4,11 +4,11 @@
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui-base";
-import { props, closeOverlay, theme, home, spaces, panes, setShared, run, notify, knownAgents, terminals } from "herdr";
+import { props, closeOverlay, theme, home, spaces, panes, shared, setShared, run, notify, knownAgents, terminals, layout, pickFolder } from "herdr";
 import { untrackedName } from "./lib/world.js";
 import { S } from "./strings.js";
 import { newTask, newProject, setStatus } from "./lib/store.js";
-import { STATUSES, tilde, untilde, base, byUrgency, OPEN, parseDue, dueLabel, issueLabel } from "./lib/util.js";
+import { STATUSES, tilde, untilde, base, byUrgency, OPEN, parseDue, dueLabel, issueLabel, isLater, laterLabel, parseLater } from "./lib/util.js";
 import { linearKey, linearIssues } from "./lib/linear.js";
 import { place, repoState } from "./lib/git.js";
 import { STATUS_ICON, button, chip, statusIcon, statusColor, prioColor, prioChip, icon } from "./lib/ui.js";
@@ -63,6 +63,14 @@ async function repoChoices(store) {
 }
 
 export const Dialogs = {
+  // Runs `work`, then closes. Never the other way round: closing drops this copy of
+  // the mod, and with it whatever it had spawned and not finished.
+  closeAfter(cx, work) {
+    if (this.saving) return;
+    this.saving = true;
+    cx.spawn(async () => { try { await work(); } finally { close(); } });
+  },
+
   initDialog(cx) {
     const p = props() ?? {};
     this.handle = cx.focus_handle();
@@ -72,6 +80,8 @@ export const Dialogs = {
       jump: () => this.initJump(cx),
       issues: () => this.initIssues(cx, p),
       repo: () => this.initRepoMenu(cx),
+      "project-menu": () => this.initRepoMenu(cx),
+      later: () => this.initLater(cx, p),
       settings: () => this.initSettings(cx),
     }[p.dialog];
     if (init) init(); else this.handle.focus();
@@ -85,11 +95,14 @@ export const Dialogs = {
       project: () => this.projectForm(t, cx),
       menu: () => this.menu(t, p),
       repo: () => this.repoMenu(t, p),
+      "project-menu": () => this.projectMenu(t, p),
+      later: () => this.laterForm(t, cx),
       jump: () => this.jump(t, cx),
       issues: () => this.issuesList(t, cx),
       archive: () => this.archiveConfirm(t, p),
       loose: () => this.looseMenu(t, p, cx),
       "confirm-delete": () => this.deleteConfirm(t, p),
+      "confirm-close": () => this.closeConfirm(t, p, cx),
       settings: () => this.settingsForm(t, cx),
     }[p.dialog]?.() ?? div();
     return v_flex().id("tasker-dialog").track_focus(this.handle)
@@ -119,7 +132,7 @@ export const Dialogs = {
       return st;
     };
     this.inputs = { title: mk("title", S.titlePlaceholder), next_step: mk("next_step", S.nextStepPlaceholder), due: mk("due", S.duePlaceholder), estimate: mk("estimate", S.estimatePlaceholder) };
-    this.notes = TextareaState.new({ value: this.form.notes ?? "", rows: 4 });
+    this.notes = TextareaState.new({ value: this.form.notes ?? "", rows: 7 });
     this.notes.on("change", () => { this.form.notes = this.notes.value(); });
     this.inputs.title.focus();
     this.focusedField = "title";
@@ -178,7 +191,7 @@ export const Dialogs = {
         .child(div().flex_1().min_w(0).child(field(t, S.due, input(t, this.inputs.due, this.focusedField === "due", due === undefined), dueHint)))
         .child(div().w(110).child(field(t, S.estimate, input(t, this.inputs.estimate, this.focusedField === "estimate")))))
       .child(field(t, S.nextStep, input(t, this.inputs.next_step, this.focusedField === "next_step")))
-      .child(field(t, S.notes, Textarea.new(this.notes).h(90).p(8).rounded(8).border_1().border_color(t.input).bg(t.background).text_size(12.5))),
+      .child(field(t, S.notes, Textarea.new(this.notes).h(140).p(8).rounded(8).border_1().border_color(t.input).bg(t.background).text_size(12.5), { text: S.notesHint })),
     [button(t, "cancel", S.cancel, close), button(t, "save", S.save, (_e, cx) => this.saveTask(cx), { primary: true, disabled: !canSave || this.saving })]);
   },
 
@@ -231,6 +244,22 @@ export const Dialogs = {
     });
   },
 
+  // A folder from the system's picker: its repository (the main checkout, as a worktree
+  // belongs to its repo), else the folder itself. Added ticked.
+  addFolder(cx) {
+    cx.spawn(async (cx) => {
+      let folder = null;
+      try { folder = await pickFolder({ prompt: S.addFolderPrompt }); } catch {}
+      if (!folder) return;
+      const h = home();
+      const st = await repoState(folder, null).catch(() => null);
+      const key = tilde(st?.main ?? folder, h);
+      const f = this.form;
+      if (!f.repos.includes(key)) f.repos = [...f.repos, key];
+      cx.notify();
+    });
+  },
+
   projectForm(t, cx) {
     const f = this.form;
     const all = [...new Set([...f.repos, ...(this.repoList ?? [])])];
@@ -253,7 +282,7 @@ export const Dialogs = {
               .child(icon(on ? "circle-check" : "circle", 14, on ? t.accent : t.dim))
               .child(div().flex_1().truncate().child(r))
               .when(Boolean(other) && other.id !== props().project, (el) => el.child(div().text_size(10.5).text_color(t.dim).child(S.inProject(other.name))));
-          })), { text: S.reposHint })),
+          })).child(h_flex().pt(4).child(button(t, "add-folder", `${S.addFolder}…`, (_e, cx) => this.addFolder(cx), { small: true, iconName: "folder-plus" }))), { text: S.reposHint })),
     [button(t, "cancel", S.cancel, close), button(t, "save", S.save, (_e, cx) => this.saveProject(cx), { primary: true, disabled: !String(f.name ?? "").trim() })],
     this.isNew ? [] : [button(t, "del", S.remove, (_e, cx) => {
       const id = props().project;
@@ -265,17 +294,18 @@ export const Dialogs = {
   menu(t, p) {
     const task = this.store.task(p.task);
     if (!task) return div().p(10).text_color(t.dim).child(S.loading);
-    const upd = (fn) => (_e, cx) => { close(); cx.spawn(async () => this.store.update((d) => { const x = d.tasks.find((y) => y.id === task.id); if (!x) return false; fn(x); x.updated = Date.now(); })); };
+    const upd = (fn) => (_e, cx) => this.closeAfter(cx, () => this.store.update((d) => { const x = d.tasks.find((y) => y.id === task.id); if (!x) return false; fn(x); x.updated = Date.now(); }));
     const item = (id, iconName, label, onClick, hint, color) => h_flex().id(id).h(28).px(8).gap(8).rounded(6).items_center().cursor_pointer()
       .text_color(color ?? t.foreground).hover((s) => s.bg(t.hover)).on_click(onClick)
       .child(icon(iconName, 13, color ?? t.muted)).child(div().flex_1().child(label))
       .when(Boolean(hint), (el) => el.child(div().text_size(11).text_color(t.dim).child(hint)));
     const sep = () => div().h(1).my(4).bg(t.border);
     return v_flex().p(5).text_size(12.5)
+      .child(item("details", "panel-right", S.showDetails, () => { close(); run("layout.show", { id: "tasker-detail" }); }, "i"))
       .child(item("edit", "pencil", `${S.editTask}…`, () => { close(); openDialog("task", { task: task.id }); }, "e"))
-      .child(item("launch", "play", S.start, (_e, cx) => { close(); this.launch(cx, task, false); }, "l"))
-      .when(Boolean(task.sessions?.length), (el) => el.child(item("resume", "rotate-ccw", S.resume, (_e, cx) => { close(); this.resume(cx, task); }, "r")))
-      .when(Boolean(task.repo), (el) => el.child(item("launch-wt", "git-fork", S.startWorktree, (_e, cx) => { close(); this.launch(cx, task, true); }, "w")))
+      .child(item("launch", "play", S.start, (_e, cx) => this.closeAfter(cx, () => this.startAgent(task, false)), "l"))
+      .when(Boolean(task.sessions?.length), (el) => el.child(item("resume", "rotate-ccw", S.resume, (_e, cx) => this.closeAfter(cx, () => this.resumeAgent(task)), "r")))
+      .when(Boolean(task.repo), (el) => el.child(item("launch-wt", "git-fork", S.startWorktree, (_e, cx) => this.closeAfter(cx, () => this.startAgent(task, true)), "w")))
       .child(sep())
       .child(h_flex().px(8).py(4).gap(4).flex_wrap().children(STATUSES.map((s) => div().id(`s-${s}`).px(6).h(22).rounded(5).flex().items_center().cursor_pointer()
         .bg(task.status === s ? statusColor(t, s) + "26" : t.popover).text_color(statusColor(t, s)).hover((x) => x.bg(t.hover))
@@ -283,6 +313,18 @@ export const Dialogs = {
       .child(h_flex().px(8).py(4).gap(4).children([1, 2, 3].map((n) => div().id(`p-${n}`).px(8).h(22).rounded(5).flex().items_center().cursor_pointer()
         .bg(task.priority === n ? prioColor(t, n) + "26" : t.popover).text_color(prioColor(t, n)).hover((x) => x.bg(t.hover))
         .tooltip(S.priorityHint[n]).on_click(upd((x) => { x.priority = n; })).child(S.priorityLabel[n]))))
+      .child(sep())
+      // Later: put it off until a day (it comes back by itself), or someday.
+      .child(h_flex().px(8).py(4).gap(4).flex_wrap().items_center()
+        .child(h_flex().id("later-l").gap(5).pr(2).items_center().text_size(11.5).text_color(t.muted).tooltip(S.laterHint).child(icon("moon", 13)).child(S.later))
+        .children([["tomorrow", S.laterTomorrow], ["mon", S.laterNextWeek], ["someday", S.laterSomeday]].map(([word, label]) => {
+          const v = parseLater(word);
+          return div().id(`later-${word}`).px(7).h(22).rounded(5).flex().items_center().cursor_pointer().text_size(11.5)
+            .bg(task.snooze === v ? t.selected : t.popover).hover((x) => x.bg(t.hover)).on_click(upd((x) => { x.snooze = v; })).child(label);
+        }))
+        .child(div().id("later-pick").px(7).h(22).rounded(5).flex().items_center().cursor_pointer().text_size(11.5).text_color(t.muted)
+          .hover((x) => x.bg(t.hover)).on_click(() => { close(); openDialog("later", { task: task.id }); }).child(S.laterPick)))
+      .when(isLater(task), (el) => el.child(item("bring-back", "rotate-ccw", `${S.bringBack} (${laterLabel(task.snooze)})`, upd((x) => { x.snooze = null; }))))
       .child(sep())
       .child(item("archive", "circle-check", `${S.archive}…`, () => { close(); openDialog("archive", { task: task.id }); }))
       .child(item("delete", "trash-2", `${S.remove}…`, () => { close(); openDialog("confirm-delete", { task: task.id }); }, null, t.blocked));
@@ -306,8 +348,7 @@ export const Dialogs = {
     const sep = () => div().h(1).my(4).bg(t.border);
     const owner = this.store.data.projects.find((x) => (x.repos ?? []).some((r) => tilde(untilde(r, h), h) === p.repo));
     const assign = (pid) => (_e, cx) => {
-      close();
-      cx.spawn(async () => this.store.update((d) => {
+      this.closeAfter(cx, () => this.store.update((d) => {
         for (const x of d.projects) x.repos = (x.repos ?? []).filter((r) => tilde(untilde(r, h), h) !== p.repo);
         const x = pid && d.projects.find((y) => y.id === pid);
         if (x) x.repos.push(p.repo);
@@ -316,6 +357,7 @@ export const Dialogs = {
     return v_flex().p(5).text_size(12.5)
       .child(div().px(8).pt(4).pb(6).text_size(11).text_color(t.dim).truncate().child(p.repo))
       .child(item("r-term", "square-terminal", S.newTerminal, () => { close(); act.openHere(p.repo); }))
+      .when(this.spacesOf([p.repo]).length > 0, (el) => el.child(item("r-close", "circle-x", `${S.closeRepo}…`, () => { close(); openDialog("confirm-close", { repos: [p.repo], name: base(p.repo) }); })))
       .children(this.agentList.map((a) => item(`r-ag-${a.key}`, "bot", S.newAgent(a.name), () => { close(); act.openHere(p.repo, a.run); })))
       .child(sep())
       .child(item("r-task", "plus", `${S.newTaskTitle}…`, () => { close(); openDialog("task", { repo: p.repo, project: p.project ?? owner?.id ?? null }); }))
@@ -331,6 +373,25 @@ export const Dialogs = {
           .child(div().size(7).rounded(2).bg(projectColor(x))).child(x.name))));
   },
 
+  // ── Menu of a project: a terminal or an agent across its repos, a task, the form ──
+  projectMenu(t, p) {
+    const proj = this.store.project(p.project);
+    if (!proj) return div().p(10).text_color(t.dim).child(S.loading);
+    const item = (id, iconName, label, onClick) => h_flex().id(id).h(28).px(8).gap(8).rounded(6).items_center().cursor_pointer()
+      .hover((s) => s.bg(t.hover)).on_click(onClick).child(icon(iconName, 13, t.muted)).child(div().flex_1().truncate().child(label));
+    const sep = () => div().h(1).my(4).bg(t.border);
+    const has = (proj.repos ?? []).length > 0;
+    return v_flex().p(5).text_size(12.5)
+      .child(div().px(8).pt(4).pb(6).text_size(11).text_color(t.dim).truncate().child(has ? proj.repos.join(" · ") : S.projectNoRepos))
+      .when(has, (el) => el
+        .child(item("p-term", "square-terminal", S.projectTerminal, () => { close(); act.openInProject(proj); }))
+        .children(this.agentList.map((a) => item(`p-ag-${a.key}`, "bot", S.newAgent(a.name), () => { close(); act.openInProject(proj, a.run); })))
+        .child(sep()))
+      .child(item("p-task", "plus", `${S.newTaskTitle}…`, () => { close(); openDialog("task", { project: proj.id }); }))
+      .child(item("p-edit", "pencil", `${S.editProjectItem}…`, () => { close(); openDialog("project", { project: proj.id }); }))
+      .when(this.spacesOf(proj.repos ?? []).length > 0, (el) => el.child(item("p-close", "circle-x", `${S.closeProject}…`, () => { close(); openDialog("confirm-close", { repos: proj.repos, name: proj.name }); })));
+  },
+
   // ── Menu of a tab in no task ───────────────────────────────────────────
   looseMenu(t, p, cx) {
     this.look(cx);
@@ -341,12 +402,43 @@ export const Dialogs = {
       .hover((s) => s.bg(t.hover)).on_click(onClick).child(icon(iconName, 13, t.muted)).child(div().flex_1().truncate().child(label));
     return v_flex().p(5).text_size(12.5)
       .child(div().px(8).pt(4).pb(6).text_size(11).text_color(t.dim).truncate().child(untrackedName(u)))
-      .child(item("l-make", "plus", S.makeTask, (_e, cx) => {
-        close();
-        cx.spawn(async () => { const id = await act.adopt(this.store, u); if (id) { setShared("tasker.selected", id); run("layout.show", { id: "tasker-detail" }); } });
-      }))
+      .child(item("l-make", "plus", S.makeTask, (_e, cx) => this.closeAfter(cx, async () => {
+        const id = await act.adopt(this.store, u);
+        if (id) setShared("tasker.selected", id);
+      })))
       .child(item("l-add", "list-plus", S.addToTask, () => { close(); openDialog("jump", { attach: u.tab }); }))
       .when(Boolean(pane), (el) => el.child(item("l-go", "arrow-right", S.focusAgent, () => { close(); run("pane.focus", { pane }); })));
+  },
+
+  // ── Later: a day typed as for a due date, or "someday" ──────────────────
+  initLater(cx, p) {
+    this.saving = false;
+    this.laterText = "";
+    this.laterInput = InputState.new({ placeholder: S.laterPlaceholder });
+    this.laterInput.on("change", (_e, cx) => { this.laterText = this.laterInput.value(); cx.notify(); });
+    this.laterInput.on("submit", (_e, cx) => this.saveLater(cx));
+    this.laterInput.focus();
+    cx.spawn(async (cx) => { if (!this.store.loaded) await this.store.load(); cx.notify(); });
+  },
+
+  saveLater(cx) {
+    const v = parseLater(this.laterText);
+    const id = props().task;
+    if (!v || !id) return;
+    this.closeAfter(cx, () => this.store.update((d) => { const x = d.tasks.find((y) => y.id === id); if (!x) return false; x.snooze = v; x.updated = Date.now(); }));
+  },
+
+  laterForm(t, cx) {
+    const task = this.store.task(props().task);
+    const v = parseLater(this.laterText);
+    const hint = !this.laterText.trim() ? null : v ? { text: S.laterUntil(laterLabel(v)) + (v === "someday" ? "" : ` · ${v}`) }
+      : { text: v === null ? S.laterPast : S.laterBad, color: t.blocked };
+    return v_flex().p(18).gap(10).size_full()
+      .child(this.title(t, S.laterTitle(task?.title ?? "")))
+      .child(field(t, S.later, input(t, this.laterInput, true, this.laterText.trim() && !v), hint))
+      .child(div().flex_1())
+      .child(h_flex().gap(8).justify_end().child(button(t, "cancel", S.cancel, close))
+        .child(button(t, "later-save", S.laterSave, (_e, cx) => this.saveLater(cx), { primary: true, iconName: "moon", disabled: !v })));
   },
 
   // ── Archive and delete ─────────────────────────────────────────────────
@@ -377,14 +469,31 @@ export const Dialogs = {
       ]);
   },
 
+  // The spaces open in these repositories (a worktree's space counts as its repo's).
+  spacesOf(repos) {
+    this.look(null);
+    const h = home();
+    const keys = new Set(repos.map((r) => tilde(untilde(r, h), h)));
+    return this.world.spaces.filter((s) => s.key && !s.on && keys.has(s.key));
+  },
+
+  closeConfirm(t, p, cx) {
+    this.look(cx);
+    const list = this.spacesOf(p.repos ?? []);
+    const tabs = new Set(list.flatMap((s) => (s.s.tabs ?? []).map((x) => x.id)));
+    const agents = [...this.world.byTab.entries()].filter(([tab]) => tabs.has(tab)).reduce((n, [, es]) => n + es.length, 0);
+    const go = () => { for (const s of list) run("space.close", { id: s.s.id, confirmed: true }); close(); };
+    return this.confirmBox(t, S.closeTitle(p.name ?? ""), S.closeBody(list.length, agents),
+      [button(t, "close-it", S.closeIt, go, { danger: true, iconName: "circle-x", disabled: !list.length })]);
+  },
+
   deleteConfirm(t, p) {
     const task = this.store.task(p.task);
     if (!task) return div();
-    const del = (_e, cx) => {
-      close();
-      cx.spawn(async () => this.store.update((d) => { const x = d.tasks.find((y) => y.id === task.id); if (!x) return false; x.deleted = true; x.updated = Date.now(); }));
-      if (props().task === task.id) setShared("tasker.selected", null);
-    };
+    const del = (_e, cx) => this.closeAfter(cx, async () => {
+      await this.store.update((d) => { const x = d.tasks.find((y) => y.id === task.id); if (!x) return false; x.deleted = true; x.updated = Date.now(); });
+      if (shared("tasker.selected") === task.id) setShared("tasker.selected", null);
+    });
     return this.confirmBox(t, S.deleteTitle(task.title), S.deleteBody, [button(t, "del", S.remove, del, { danger: true, iconName: "trash-2" })]);
   },
 
@@ -410,13 +519,26 @@ export const Dialogs = {
     // Installed agents, and the chosen one even when it isn't.
     const agents = (this.agentList ?? []).filter((a) => a.installed || a.key === s.agent);
     const known = agents.some((a) => a.key === s.agent);
+    // The layout's stack of lists (tasker's own layout has one; a custom layout may not).
+    const find = (n) => (n?.id === "tasker-lists" ? n : (n?.children ?? []).map(find).find(Boolean));
+    const lists = find(layout());
     const setting = (label, hint, el) => v_flex().gap(6)
       .child(div().text_size(12).font_medium().child(label)).child(el)
       .child(div().text_size(11).text_color(t.dim).child(hint));
     return this.withFooter(t, v_flex().gap(18)
       .child(this.title(t, S.settingsTitle))
+      .when(Boolean(lists), (el) => el.child(setting(S.listsLayout, S.listsLayoutHint, h_flex().gap(4).children([["tasker-sidebar", S.listsTabs], ["tasker-split", S.listsStacked]].map(([child, label]) => {
+        const on = (lists.active ?? lists.children?.[0]?.id) === child;
+        return h_flex().id(`lists-${child}`).h(26).px(10).rounded(6).items_center().text_size(11.5).cursor_pointer()
+          .border_1().border_color(on ? t.accent : t.input).bg(on ? t.accent + "26" : t.background)
+          .hover((x) => x.bg(t.hover)).on_click(() => run("layout.select", { stack: "tasker-lists", child })).child(label);
+      })))))
       .child(setting(S.wipLimit, S.wipLimitHint, stepper("wip", s.wip, 1, 20, String(s.wip), "wip")))
       .child(setting(S.staleDays, S.staleDaysHint, stepper("stale", s.stale_days, 1, 60, S.days(s.stale_days), "stale_days")))
+      .child(setting(S.reminders, S.remindersHint, h_flex().gap(4).children([[true, S.on], [false, S.off]].map(([v, label]) =>
+        h_flex().id(`rem-${v}`).h(26).px(10).rounded(6).items_center().text_size(11.5).cursor_pointer()
+          .border_1().border_color(s.reminders === v ? t.accent : t.input).bg(s.reminders === v ? t.accent + "26" : t.background)
+          .hover((x) => x.bg(t.hover)).on_click(set({ reminders: v })).child(label)))))
       .child(setting(S.showUsage, S.showUsageHint, h_flex().gap(4).children([[true, S.on], [false, S.off]].map(([v, label]) =>
         h_flex().id(`usage-${v}`).h(26).px(10).rounded(6).items_center().text_size(11.5).cursor_pointer()
           .border_1().border_color(s.usage === v ? t.accent : t.input).bg(s.usage === v ? t.accent + "26" : t.background)
@@ -455,11 +577,14 @@ export const Dialogs = {
     const list = this.jumpList();
     const task = id ? list.find((x) => x.id === id) : list[this.at];
     if (!task) return;
-    // Opened to put a loose tab in a task: tie it, then show the task.
+    // As a click in the list: select it and bring its agent to the front. Opened to put
+    // a loose tab in a task: tie it first.
     const tab = props()?.attach;
-    if (tab && cx) cx.spawn(async () => act.link(this.store, task.id, tab, terminals()));
     setShared("tasker.selected", task.id);
-    run("layout.show", { id: "tasker-detail" });
+    if (tab && cx) { this.closeAfter(cx, () => act.link(this.store, task.id, tab, terminals())); return; }
+    this.look(null);
+    const pane = this.paneOf(this.world.taskById.get(task.id));
+    if (pane) run("pane.focus", { pane });
     close();
   },
 

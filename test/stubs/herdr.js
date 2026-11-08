@@ -50,6 +50,7 @@ export const terminals = () => H.terminals;
 export const focused = () => H.focused;
 export const window = () => H.window;
 export const layout = () => H.layout ?? null;
+export const pickFolder = async () => H.picked ?? null;
 export const machines = () => [{ name: null, layout: "ready" }];
 export const props = () => H.props;
 export const shared = (k) => H.shared[k];
@@ -101,7 +102,8 @@ export function nextCommand() {
   return new Promise((resolve) => H.commandWaiters.push(resolve));
 }
 
+// As in Herdr: a key command reaches every copy waiting for one.
 export function command(c) {
-  const w = H.commandWaiters.shift();
-  if (w) w(c); else H.commandQueue.push(c);
+  const ws = H.commandWaiters.splice(0);
+  if (ws.length) ws.forEach((w) => w(c)); else H.commandQueue.push(c);
 }

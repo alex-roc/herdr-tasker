@@ -94,6 +94,24 @@ export function daysUntil(due) {
   return Math.round((a - b) / 86400000);
 }
 
+// "Later": a task put off until a day ("YYYY-MM-DD"), or "someday" (until brought back).
+// It leaves Now's lists meanwhile and comes back on that day.
+export function isLater(t, day = today()) {
+  return t?.snooze === "someday" || (typeof t?.snooze === "string" && t.snooze > day);
+}
+
+export const laterLabel = (snooze) => (snooze === "someday" ? "someday" : dueLabel(snooze));
+
+// What a person types for Later: a due-date word for a day after today, or "someday".
+// Not understood → undefined; today or a past day → null (it wouldn't be put off at all).
+export function parseLater(text, now = new Date()) {
+  const s = String(text ?? "").trim().toLowerCase();
+  if (s === "someday" || s === "some day") return "someday";
+  const d = parseDue(s, now);
+  if (!d) return undefined;
+  return d > localDay(now.getTime()) ? d : null;
+}
+
 export function dueLabel(due) {
   const n = daysUntil(due);
   if (n == null) return null;

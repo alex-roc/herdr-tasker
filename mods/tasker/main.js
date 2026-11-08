@@ -4,10 +4,10 @@
 
 import { View, div } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { props, theme, spaces, panes, agents, terminals, home, window, shared, setShared, notify } from "herdr";
+import { props, run, theme, spaces, panes, agents, terminals, home, window, shared, setShared, notify } from "herdr";
 import { S } from "./strings.js";
 import { Store } from "./lib/store.js";
-import { icon } from "./lib/ui.js";
+import { icon, onScreen } from "./lib/ui.js";
 import { openDialog } from "./lib/open.js";
 import { RepoCache } from "./lib/git.js";
 import { AgentInfo } from "./lib/agentinfo.js";
@@ -45,18 +45,21 @@ export default class Tasker extends View {
     }
   }
 
-  // Herdr's live data joined with the tasks, once per render.
+  // Herdr's live data joined with the tasks, once per render. Without a cx (a menu
+  // that only needs the spaces), nothing is looked up.
   look(cx) {
     const sp = spaces(), ps = panes(), ts = terminals();
     const ag = agents();
     this.world = build({ data: this.store.data, sp, ps, ag, ts, repos: this.repos, h: home() });
     this.track(ag, ts);
+    if (!cx || this.role === "dialog") return;
     if (this.role === "sidebar") {
       // Repo state of every local space (remote ones stay as folders).
       const list = this.world.spaces.filter((s) => s.folder && !s.on).map((s) => ({ folder: s.folder, on: null }));
       this.repos.refresh(cx, list, window()?.active ? 45000 : 180000);
     }
-    if (this.role !== "status") this.info.refresh(cx, this.world.tasks.flatMap((x) => x.agents.map((e) => e.term)).filter(Boolean));
+    // Every agent's model and context: in tasks and in no task alike.
+    if (this.role !== "status") this.info.refresh(cx, [...this.world.tasks.flatMap((x) => x.agents), ...this.world.untracked.flatMap((u) => u.agents)].map((e) => e.term).filter(Boolean));
   }
 
   // Stamps agents whose state changed (done and idle count as one, as in Herdr's list).
@@ -86,20 +89,27 @@ export default class Tasker extends View {
   }
 
   launch(cx, task, worktree, resume = null) {
-    cx.spawn(async () => {
-      try {
-        const pending = await launch(this.store, task, { worktree, resume });
-        setShared("tasker.pending", [...(shared("tasker.pending") ?? []), { ...pending, beforeTabs: [...pending.beforeTabs], beforeSpaces: [...pending.beforeSpaces] }]);
-      } catch (e) {
-        notify({ title: S.launchFailed, body: String(e?.message ?? e), level: "error" });
-      }
-    });
+    cx.spawn(() => this.startAgent(task, worktree, resume));
   }
 
   // Continues the task's last agent conversation (after a restart, or a closed tab).
   resume(cx, task) {
+    cx.spawn(() => this.resumeAgent(task));
+  }
+
+  // The work itself, for a dialog that waits on it before closing.
+  async startAgent(task, worktree, resume = null) {
+    try {
+      const pending = await launch(this.store, task, { worktree, resume });
+      setShared("tasker.pending", [...(shared("tasker.pending") ?? []), { ...pending, beforeTabs: [...pending.beforeTabs], beforeSpaces: [...pending.beforeSpaces] }]);
+    } catch (e) {
+      notify({ title: S.launchFailed, body: String(e?.message ?? e), level: "error" });
+    }
+  }
+
+  async resumeAgent(task) {
     const s = task?.sessions?.at(-1);
-    if (s) this.launch(cx, task, false, s);
+    if (s) await this.startAgent(task, false, s);
   }
 
   renderStatus(cx) {
@@ -128,6 +138,9 @@ export default class Tasker extends View {
       .child(div().flex_1())
       .children(usage)
       .child(item("st-open", t.dim, null, S.openCount(open.length)))
+      // The task panel: open when you want more about a task; selecting never opens it.
+      .child(div().id("st-detail").cursor_pointer().text_color(onScreen("tasker-detail") ? t.foreground : t.dim).hover((s) => s.text_color(t.foreground))
+        .tooltip(S.detailsToggle).on_click((_e, cx) => { run("layout.toggle", { id: "tasker-detail" }); cx.notify(); }).child(icon("panel-right", 13)))
       .child(div().id("st-settings").text_color(t.dim).cursor_pointer().hover((s) => s.text_color(t.foreground)).tooltip(S.settings)
         .on_click(() => openSettings()).child(icon("settings", 13)));
   }

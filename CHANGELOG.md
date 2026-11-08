@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.3.0 — 2026-11-08
+
+### New
+- **A board per project**: every board is a tab, "Board" for every project (`cmd-shift-b`) and
+  "Board · Acme" for each project, with only its tasks and agents. The pills at the top go from one
+  board to another (opening its tab the first time) instead of filtering in place.
+- **A project's actions where you look for them**: while the pointer is on a project's row, its board,
+  a terminal, a task and its menu show in place of its count. The menu is grouped: plan (board, new
+  task), work across its repositories (terminal, agents), manage (edit, close). The header of
+  Projects drops its board button: each project's row has its own (Now keeps the board of every
+  project).
+
+### Changed
+- The settings dialog is taller, so every option shows without scrolling.
+- New screenshots for the README and the website (Later, project-wide work, stacked lists, the new
+  settings); the demo covers them.
+
 ## 1.2.1 — 2026-11-08
 
 ### Changed

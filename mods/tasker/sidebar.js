@@ -8,7 +8,7 @@ import { theme, run, shared, setShared, setAgentOrder, home, spaces, terminals, 
 import { S } from "./strings.js";
 import { setStatus } from "./lib/store.js";
 import { nowView, projectTree, untrackedName } from "./lib/world.js";
-import { arrived, link, openHere, adopt, openInProject, labelProject } from "./lib/actions.js";
+import { arrived, link, openHere, adopt, openInProject, labelProject, openBoard } from "./lib/actions.js";
 import { RANK, shortModel, kilo, base, tilde, today, isLater, laterLabel } from "./lib/util.js";
 import { taskMark, prioChip, dueChip, agentMark, sectionHeader, iconButton, programIcon, CHEVRON, icon, agentFor, shownLists } from "./lib/ui.js";
 import { sharedCache } from "./lib/cache.js";
@@ -138,11 +138,9 @@ export const Sidebar = {
     cx.notify();
   },
 
-  // The board is a tab whose pane is this mod: go to the one open, else make one here.
+  // The board of every project (cmd-shift-b); a project's own comes from its menu.
   openBoard() {
-    const pane = panes().find((p) => p.mod === "tasker");
-    if (pane) run("pane.focus", { pane: pane.pane });
-    else run("tab.new", { name: S.board, mod: "tasker", props: { role: "board" } });
+    openBoard();
   },
 
   openTaskForm(p) {
@@ -377,18 +375,21 @@ export const Sidebar = {
       const p = x.p;
       const id = `p:${p?.id ?? "-"}`;
       const open = !this.folded.has(id);
+      // Its actions show while the pointer is on it (board, terminal, task, menu); else its count.
+      const acts = Boolean(p) && this.hovered === id;
       rows.push(h_flex().id(id).px(8).pt(8).h(32).flex_none().gap(7).items_center().cursor_pointer()
         .on_click((_e, cx) => this.fold(id, cx))
         .on_mouse_down("right", (_e, cx) => { if (p) { cx.stop_propagation(); openDialog("project-menu", { project: p.id }); } })
+        .on_hover((on, cx) => { this.hovered = on ? id : this.hovered === id ? null : this.hovered; cx.notify(); })
         .child(div().size(9).rounded(3).flex_none().bg(p ? projectColor(p) : t.dim))
         .child(div().flex_1().min_w(0).truncate().text_size(12).font_semibold().text_color(p ? t.foreground : t.dim).child(p?.name ?? S.noProject))
         .when(!open && Boolean(x.top), (el) => el.child(agentMark(t, x.top)))
-        // A terminal and a task for the whole project (every repository), and its menu.
-        .when(Boolean(p?.repos?.length), (el) => el.child(iconButton(t, `pterm-${id}`, "square-terminal", S.projectTerminal, () => openInProject(p))))
-        .when(Boolean(p), (el) => el
+        .when(acts, (el) => el
+          .child(iconButton(t, `pboard-${id}`, "square-kanban", S.boardOf(p.name), () => openBoard(p)))
+          .when(Boolean(p.repos?.length), (el) => el.child(iconButton(t, `pterm-${id}`, "square-terminal", S.projectTerminalHint, () => openInProject(p))))
           .child(iconButton(t, `padd-${id}`, "plus", S.projectTaskHint, () => this.openTaskForm({ project: p.id })))
           .child(iconButton(t, `pmore-${id}`, "ellipsis", S.projectMenu, () => openDialog("project-menu", { project: p.id }))))
-        .child(div().text_size(11).text_color(t.dim).child(String(x.count)))
+        .when(!acts, (el) => el.child(div().text_size(11).text_color(t.dim).child(String(x.count))))
         .child(svg(CHEVRON(open)).size(11).flex_none().text_color(t.dim)));
       if (!open) return;
       // The whole project's work first (tasks and tabs above its repositories), then each repository.
@@ -431,7 +432,8 @@ export const Sidebar = {
         .when(view === "projects", (el) => el.child(iconButton(t, "flt-done", this.filters.done ? "eye" : "eye-off", this.filters.done ? S.hideDone : S.showDone, (_e, cx) => {
           this.filters.done = !this.filters.done; localStorage.setItem("filters", JSON.stringify(this.filters)); cx.notify();
         })).child(iconButton(t, "add-proj", "folder-plus", S.newProject, () => openDialog("project"))))
-        .child(iconButton(t, "board", "square-kanban", S.openBoard, () => this.openBoard()))
+        // The board of every project from Now; in Projects each project's row has its own.
+        .when(view === "now", (el) => el.child(iconButton(t, "board", "square-kanban", S.openBoard, () => this.openBoard())))
         .child(iconButton(t, "jump", "search", S.searchTasks, () => this.command("jump", null)))
         .child(iconButton(t, "add-task", "plus", S.newTask, () => this.openTaskForm({}))))
       .when(Boolean(this.store.error), (el) => el.child(div().px(12).py(6).text_size(11).text_color(t.blocked).child(this.store.error)))

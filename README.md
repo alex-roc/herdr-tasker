@@ -60,8 +60,9 @@ its menu also offers **Add to task…** to tie it to one you already have.
 commits not pushed (↑) and uncommitted changes (•), and the terminals open there that belong to no
 task. From a repository: `›_` opens a terminal there, `+` a task, and `⋯` (or right-click) starts any
 installed agent there, imports GitHub or Linear issues, moves it to another project, or closes its
-spaces. From a project: `›_` opens a terminal, `+` a task for the whole project, and `⋯` (or
-right-click) starts an agent across all its repositories or closes them all. Work for the whole project
+spaces. A project's row shows its actions while the pointer is on it: its board, a terminal and a task
+for the whole project, and `⋯` (or right-click), its menu: board and new task; a terminal or any
+installed agent across its repositories; edit it, or close all its spaces. Work for the whole project
 (its terminal, its agents, a task with a project but no repository) opens in the project's own space,
 named after it, in the nearest folder holding all its repositories (`~/dev` for `~/dev/a` and
 `~/dev/b`), and shows at the project's level, above its repositories. Its agent is told which
@@ -69,10 +70,12 @@ repositories are the project's (any outside that folder is added with `--add-dir
 Codex); a task in one repository of a bigger project hears of the others. Terminals and agents in no task show the same line as a task:
 model, effort, context and how long in their state.
 
-**Board**: a kanban tab (`cmd-shift-b`, or the board button) with Inbox, Next, Doing (with your
+**Board**: a kanban tab (`cmd-shift-b`, or the board button in Now) with Inbox, Next, Doing (with your
 limit), Waiting, Review and Done (last 7 days). Drag a card to change its status, click to open it,
-right-click for its menu, filter by project. Agents in no task wait in a **No task** lane on the left:
-drag one onto a column to make it a task there.
+right-click for its menu. Every board is a tab: **Board** for every project, and **Board · Acme** for
+each project, with only its tasks and agents. The pills at the top (All · Acme · …) go from one board
+to another, opening its tab the first time. Agents in no task wait in a **No
+task** lane on the left: drag one onto a column to make it a task there.
 
 ![The board](docs/board.png)
 

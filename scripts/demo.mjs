@@ -65,9 +65,11 @@ function setup() {
   const a1 = herdr("space.new", { folder: abs(api), tab: "Rate limiter", argv: agent("Rate-limit the public API", "done") });
   // An agent in no task: the "Not in a task" section and the board's No task lane.
   const b1 = herdr("space.new", { folder: abs(book), tab: "docs search", argv: agent("Try a search box for the docs", "idle") });
+  // Acme's own space, in the folder above its two repositories: work for the whole project.
+  const p1 = herdr("space.new", { name: "Acme", folder: ROOT, tab: "map services", argv: agent("Map the services across both repos", "idle") });
   // Optionally, a real agent tab of yours shown as a demo task (its real model and effort): --adopt <tab id>.
   const adopt = process.argv.includes("--adopt") ? process.argv[process.argv.indexOf("--adopt") + 1] : null;
-  writeFileSync(STATE, JSON.stringify({ spaces: [w1.space, a1.space, b1.space] }));
+  writeFileSync(STATE, JSON.stringify({ spaces: [w1.space, a1.space, b1.space, p1.space] }));
 
   mkdirSync(dirname(FILE), { recursive: true });
   if (existsSync(FILE) && !existsSync(BACKUP)) copyFileSync(FILE, BACKUP);
@@ -78,7 +80,8 @@ function setup() {
     history: [{ s: "inbox", at: now - (3 + n) * DAY }, { s: f.status ?? "next", at: f.updated ?? now - DAY }], ...f });
   const data = {
     version: 1,
-    settings: { wip: 3, stale_days: 3, agent: "claude" },
+    // No reminders: a demo isn't the time for notifications.
+    settings: { wip: 3, stale_days: 3, agent: "claude", usage: false, reminders: false },
     projects: [
       { id: "acme", name: "Acme", color: "ansi4", repos: [web, api] },
       { id: "book", name: "Handbook", color: "ansi5", repos: [book] },
@@ -94,7 +97,11 @@ function setup() {
       task({ title: "Write the onboarding guide", project: "book", repo: book, priority: 2, due: day(4), estimate: "3h" }),
       task({ title: "Upgrade to Node 24", project: "acme", repo: api, priority: 3 }),
       task({ title: "Pricing page copy", project: "acme", repo: web, status: "waiting", next_step: "Waiting on design", updated: now - 5 * DAY }),
-      task({ title: "Try a dark theme for the docs", project: "book", status: "inbox", priority: 3 }),
+      task({ title: "Try a dark theme for the docs", project: "book", status: "inbox", priority: 3, snooze: day(3) }),
+      // Put off: back in three days, and someday.
+      task({ title: "Move the docs to MDX", project: "book", repo: book, status: "next", priority: 3, snooze: "someday" }),
+      // A task for the whole project: its agent works across acme-web and acme-api.
+      task({ title: "Share one auth client across web and api", project: "acme", priority: 2, next_step: "List where each repo calls auth" }),
       task({ title: "Import the old wiki", project: "book", repo: book, status: "inbox" }),
       task({ title: "Ship the v1.4 changelog", project: "book", repo: book, status: "done", done_at: now - 2 * 3600000 }),
       task({ title: "Rotate the API keys", project: "acme", repo: api, status: "done", done_at: now - 2 * DAY }),
@@ -103,7 +110,7 @@ function setup() {
   };
   writeFileSync(FILE, JSON.stringify(data, null, 1) + "\n");
   herdr("space.select", { id: w1.space });
-  console.log("Demo ready: three repos in ~/tasker-demo, 11 tasks, 3 stand-in agents. Clean up with: node scripts/demo.mjs --clean");
+  console.log("Demo ready: three repos in ~/tasker-demo, 13 tasks, 4 stand-in agents. Clean up with: node scripts/demo.mjs --clean");
 }
 
 process.argv.includes("--clean") ? clean() : setup();

@@ -13,8 +13,9 @@ every task by status.
   `workspace-chrome`), the tasker list, the footer (69px, `workspace-chrome` with `footer: true`).
   - Header (40px, border below): two pill buttons **Now** (zap icon) and **Projects** (folder-tree),
     24px high, the shown one on `selected`; then 22px icon buttons with tooltips: (Projects only)
-    eye/eye-off "Show done tasks", folder-plus "New project"; square-kanban "Board"; search "Find a
-    task"; plus "New task".
+    eye/eye-off "Show done tasks", folder-plus "New project"; (Now only) square-kanban "Board", the
+    board of every project (in Projects, each project's row has its own); search "Find a task"; plus
+    "New task".
   - **Now**: collapsible sections, header 11px medium in the section's color plus a count and a
     chevron: Needs you (`blocked`), To review (`done`), Working (`working`), Up next (foreground,
     first 7, then "N more" which opens Projects), Stalled (`ansi3`), Inbox (`dim`, first 5).
@@ -26,8 +27,9 @@ every task by status.
     `⎇ branch`, `↑ahead`, `•dirty` in `ansi3`, "not open" when no space is in it, each with a
     tooltip; then `square-terminal` new terminal, `plus` new task, `ellipsis` menu), the
     repository's tasks, and its tabs in no task. Open git repositories and folders in no project go
-    under "No project". A project row also has `square-terminal` (a terminal for the whole project),
-    `plus` (a task for the whole project) and `ellipsis` (its menu).
+    under "No project". While the pointer is on a project row, its count gives way to its actions:
+    `square-kanban` (its board), `square-terminal` (a terminal for the whole project), `plus` (a task
+    for the whole project) and `ellipsis` (its menu).
   - **Task row**: 16px mark (the lead agent's state as Herdr draws it: spinner, "!" on
     `blocked`+26 alpha, 7px dot `done`, ring `idle`; else the status icon: inbox, circle-dot,
     circle-play, circle-pause, eye, circle-check, circle-x), title (semibold when its agent is done),
@@ -59,7 +61,10 @@ every task by status.
   that opens the PR, checks chip, "Ask for a pull request", "Send failed checks"), Message the agent
   (textarea + Send), Time ("Doing for 2h", "agents worked 47m", "created 4d ago"), Activity
   (history, newest first).
-- **Board** (a tab whose only pane is the mod with `role: "board"`; an open one is focused instead of
+- **Board** (a tab whose only pane is the mod with `role: "board"`, named "Board"; a project's own
+  board is another tab, "Board · <project>", with `project: <id>` in its props, its tasks and agents
+  only. Every board's header has the pills All + each project (the current one on `selected`); a pill
+  goes to that board's tab, made when not open (tabs are found by name); an open one is focused instead of
   making another): header 44px on `canvas` with "Board", project pills (All + each project with its
   color) and a hint; six columns that share the width (min 210, max 320px) on `chrome`, radius 10,
   header 38px (status icon, name, count; Doing shows n/limit in `ansi3` when over; + on Inbox and
@@ -78,7 +83,7 @@ every task by status.
   "N open", a `panel-right` button that shows or hides the detail (`foreground` when shown) and a
   settings gear. Plan usage is off until turned on.
 - **Dialogs** (Herdr dialogs, `popover` background): task form 560×660, project 480×500 (repositories
-  to tick, and *Add folder…* with the system's folder picker), settings 480×610, find 520×420, issues
+  to tick, and *Add folder…* with the system's folder picker), settings 480×700, find 520×420, issues
   540×460, archive 460×230, delete 420×190, close 440×200, later 420×200; menus are popups (task
   270×410, repository 250×370, project 270×290, loose tab 240×150). Forms scroll and keep their
   buttons in a footer with a border.
@@ -100,8 +105,8 @@ every task by status.
   Right-click: a task's menu (details, edit, start, start in worktree, status icons, priority, Later:
   Tomorrow / Next week / Someday / Pick…, Bring back, archive, delete in `blocked`); a repository's
   menu (new terminal, "New <agent> here" for each installed agent, close repo, new task, import
-  issues, its project); a project's menu (a terminal and each agent for the whole project, new task,
-  edit, close project).
+  issues, its project); a project's menu (header: color, name, "2 repositories"; Board, New task…;
+  "Across its repositories, in ~/dev", Terminal and each agent; Edit project…, Close project…).
 - Later: `snooze` is `YYYY-MM-DD` (a day after today) or `someday`. A task put off leaves every Now section but Needs you
   and Working, and waits in Later; on its day it comes back (snooze cleared) with a notification.
   Doing, done and dropped clear it.

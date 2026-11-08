@@ -61,14 +61,30 @@ doesn't have; the list is in `gpui-methods.json`, refresh it after a Herdr updat
 ## A demo in the real window
 
 ```sh
-node scripts/demo.mjs          # 3 made-up repos in ~/tasker-demo, 11 tasks, 3 stand-in agents
+node scripts/demo.mjs          # 3 made-up repos in ~/tasker-demo, 13 tasks, 4 stand-in agents
+node scripts/demo.mjs --adopt <tab id>   # also one of your real agent tabs, as a demo task
 node scripts/demo.mjs --clean  # closes the demo spaces, deletes ~/tasker-demo, restores your tasks
 ```
 
 The stand-in agents (`scripts/fake-agent.sh`) report working, blocked (with a question) and done
 through the Program Status Protocol, as real agents do:
 `printf '\e]7501;state=blocked:kind=question:app=claude-code:msg=<base64>\e\\'`. This is how
-`preview.png` and `docs/board.png` are made: no personal data in them.
+`preview.png` and `docs/board.png` are made: no personal data in them. The demo covers a blocked, a
+working and a finished agent, a task to resume, one put off and one *someday*, a task and a terminal
+for the whole Acme project (its own space, `~/tasker-demo`), and reminders off (no toasts in shots).
+
+Screenshots, with the window at 2240×1230 and the sidebar at 330px (`layout.resize {id: "sidebar",
+px: 330}`); `herdr-app shot` gives a 2× frame (4480×2460):
+
+- Bring the window to the front first (`osascript -e 'tell application "Herdr" to activate'`) or the
+  frame is stale; two identical shots mean it was. Close a stray popup with `herdr-app do overlay.close`.
+- Drive it with commands: `tasker.view`, `tasker.select:<id>` (opens the detail), `tasker.board`,
+  `tasker.new`, `tasker.settings`, `tasker.jump`, `layout.select`/`layout.hide`, `pane.focus {terminal}`.
+- `preview.png`, `site/img/overview.png` and `board.png`: the whole frame at half size. Lists: x 0–660
+  from y 92. Detail: x 3736–4472 from y 84. Dialogs: their box (settings exactly, the form with a
+  20px margin). Update `width`/`height` in `site/*.html` when a size changes.
+- Note what you changed (sidebar size, stack child, detail shown, `tasker.view`) and put it back
+  after `--clean`.
 
 ## Things that tripped the build up
 

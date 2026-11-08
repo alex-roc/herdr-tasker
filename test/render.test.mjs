@@ -207,6 +207,36 @@ test("status bar: a button opens and closes the task panel", async () => {
   assert.deepEqual(H.runs, [["layout.toggle", { id: "tasker-detail" }]]);
 });
 
+test("boards: one tab per project and one for all, the pills go from one to another", async () => {
+  const { view } = await mount({ role: "board", project: "pw" });
+  const tree = walk(render(view).tree);
+  const ids = tree.map((n) => n.id).filter(Boolean);
+  assert.ok(ids.includes("card-next1") && !ids.includes("card-doing1"), "Website's tasks only");
+  assert.ok(ids.includes("bp-all") && ids.includes("bp-pa"), "pills to the other boards");
+  assert.ok(!tree.find((n) => n.id === "bp-pw").handlers.on_click, "this board's pill does nothing");
+  // A pill opens that board's tab; open again, it's focused.
+  H.runs.length = 0;
+  tree.find((n) => n.id === "bp-pa").handlers.on_click({}, cx());
+  assert.deepEqual(H.runs.at(-1), ["tab.new", { name: "Board · App", mod: "tasker", props: { role: "board", project: "pa" } }]);
+  H.spaces[0].tabs.push({ id: "tbA", index: 9, name: "Board · App", named: true });
+  H.panes.push({ pane: "pA", tab: "tbA", terminal: null, mod: "tasker", title: "tasker" });
+  tree.find((n) => n.id === "bp-pa").handlers.on_click({}, cx());
+  assert.deepEqual(H.runs.at(-1), ["pane.focus", { pane: "pA" }]);
+  // All: the fixture's "Board" tab.
+  tree.find((n) => n.id === "bp-all").handlers.on_click({}, cx());
+  assert.deepEqual(H.runs.at(-1), ["pane.focus", { pane: "pB" }]);
+});
+
+test("a project's row shows its actions while the pointer is on it", async () => {
+  const { view } = await mount({ role: "sidebar" });
+  H.shared["tasker.view"] = "projects";
+  const ids = () => walk(render(view).tree).map((n) => n.id).filter(Boolean);
+  assert.ok(!ids().includes("pboard-p:pa"), "out of the way");
+  assert.ok(!ids().includes("board"), "no board button in Projects' header: each project has its own");
+  walk(render(view).tree).find((n) => n.id === "p:pa").handlers.on_hover(true, cx());
+  assert.ok(["pboard-p:pa", "pterm-p:pa", "padd-p:pa", "pmore-p:pa"].every((i) => ids().includes(i)));
+});
+
 test("task form: due accepts words and shortcuts", async () => {
   const { view } = await mount({ dialog: "task", overlay: "ov1" });
   const c = cx();

@@ -3,13 +3,13 @@
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { theme, setShared, run, shared } from "herdr";
+import { theme, setShared, run, shared, props } from "herdr";
 import { S } from "./strings.js";
 import { setStatus } from "./lib/store.js";
 import { RANK, byUrgency, base, shortModel, issueLabel, isLater, laterLabel } from "./lib/util.js";
 import { statusIcon, taskMark, prioChip, dueChip, chip, iconButton, icon, agentFor, agentMark, programIcon } from "./lib/ui.js";
 import { untrackedName } from "./lib/world.js";
-import { adopt } from "./lib/actions.js";
+import { adopt, openBoard } from "./lib/actions.js";
 import { openDialog } from "./lib/open.js";
 import { projectColor } from "./dialogs.js";
 
@@ -18,7 +18,10 @@ const DONE_DAYS = 7;
 
 export const Board = {
   initBoard(cx) {
-    this.boardProject = localStorage.getItem("board.project") || null;
+    // Every board is a tab: the board of every project, or one project's ({ project }).
+    // Its pills go from one board to another; the tab's name says which one this is.
+    this.fixedProject = props()?.project ?? null;
+    this.boardProject = this.fixedProject;
     this.pressed = null; // task id held down
     this.over = null; // column under the pointer while dragging
     cx.timer.every(30000, (cx) => cx.notify());
@@ -163,19 +166,22 @@ export const Board = {
 
   renderBoard(cx) {
     const t = theme();
+    const own = this.fixedProject ? this.store.project(this.fixedProject) : null;
+    // The project went (deleted): its board shows every project.
+    this.boardProject = own ? own.id : this.fixedProject && !this.store.loaded ? this.fixedProject : null;
     const cols = this.boardColumns(this.world);
     const wip = this.store.data.settings.wip;
     // Agents in no task (of the shown project, when one is picked).
-    const loose = this.world.untracked.filter((u) => u.agents.length && (!this.boardProject || this.world.projectOfRepo.get(u.where.key) === this.boardProject));
-    const pick = (id) => (_e, cx) => {
-      this.boardProject = id;
-      try { id ? localStorage.setItem("board.project", id) : localStorage.removeItem("board.project"); } catch {}
-      cx.notify();
+    const loose = this.world.untracked.filter((u) => u.agents.length && (!this.boardProject || (u.project ?? this.world.projectOfRepo.get(u.where.key)) === this.boardProject));
+    // A pill per board: this one lit, the others go to their tab (made when not open).
+    const pill = (id, label, color) => {
+      const here = this.boardProject === id;
+      return h_flex().id(`bp-${id ?? "all"}`).px(9).h(24).gap(6).rounded(6).items_center().text_size(12)
+        .bg(here ? t.selected : t.canvas).text_color(here ? t.foreground : t.muted)
+        .when(!here, (el) => el.cursor_pointer().hover((s) => s.bg(t.hover)).tooltip(id ? S.boardOf(label) : S.boardAll)
+          .on_click(() => openBoard(id ? this.store.project(id) : null)))
+        .when(Boolean(color), (el) => el.child(div().size(8).rounded(2).bg(color))).child(label);
     };
-    const pill = (id, label, color) => h_flex().id(`bp-${id ?? "all"}`).px(9).h(24).gap(6).rounded(6).items_center().cursor_pointer().text_size(12)
-      .bg(this.boardProject === id ? t.selected : t.canvas).text_color(this.boardProject === id ? t.foreground : t.muted)
-      .hover((s) => s.bg(t.hover)).on_click(pick(id))
-      .when(Boolean(color), (el) => el.child(div().size(8).rounded(2).bg(color))).child(label);
     return v_flex().id("tasker-board").size_full().min_h(0).bg(t.canvas).text_color(t.foreground)
       // Released outside any column: the drag is off.
       .on_mouse_up("left", (_e, cx) => { if (this.pressed) { this.pressed = null; this.over = null; cx.notify(); } })

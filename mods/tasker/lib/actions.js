@@ -82,6 +82,18 @@ export function openInProject(project, argv) {
   setShared("tasker.pending", [...(shared("tasker.pending") ?? []), pending]);
 }
 
+// A board is a tab whose only pane is this mod: one for every project (`project`), and one
+// for all of them. Goes to the one open (tabs are told apart by name: panes() doesn't carry
+// a mod's props), else makes it in the shown space.
+export function openBoard(project = null) {
+  const name = project ? S.boardOf(project.name) : S.board;
+  const ps = panes();
+  const tab = spaces().flatMap((s) => s.tabs ?? []).find((t) => t.name === name && ps.some((p) => p.tab === t.id && p.mod === "tasker"));
+  const pane = tab && ps.find((p) => p.tab === tab.id && p.mod === "tasker");
+  if (pane) run("pane.focus", { pane: pane.pane });
+  else run("tab.new", { name, mod: "tasker", props: { role: "board", ...(project ? { project: project.id } : {}) } });
+}
+
 // Labels a tab's terminals as the project's (shown at the project's level).
 export async function labelProject(projectId, tabId, ts) {
   for (const term of ts.filter((x) => x.labels?.["herdr.tab"] === tabId && !x.address.includes("/"))) {

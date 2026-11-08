@@ -137,7 +137,8 @@ export const S = {
   closeTitle: (name) => `Close ${name}?`,
   closeBody: (spaces, agents) => `Closes ${spaces === 1 ? "its space" : `its ${spaces} spaces`} in Herdr and ends their terminals${agents ? ` and ${agents === 1 ? "1 agent" : `${agents} agents`}` : ""}. Tasks stay; an agent's conversation can be resumed.`,
   closeIt: "Close",
-  projectTerminal: "New terminal in the project",
+  projectTerminal: "Terminal",
+  projectTerminalHint: "A terminal for the whole project, above its repositories",
   projectTaskHint: "New task for the whole project (its agent works across every repository)",
   editProjectItem: "Edit project",
   projectNoRepos: "No repositories yet: edit the project to add some.",
@@ -199,6 +200,13 @@ export const S = {
 
   // Board
   board: "Board",
+  boardOf: (name) => `Board · ${name}`,
+  boardAll: "Board of every project",
+  projectBoard: "Board",
+  reposCount: (n) => (n === 1 ? "1 repository" : `${n} repositories`),
+  noRepos: "no repositories",
+  workIn: (folder) => `Across its repositories, in ${folder}`,
+  projectActionsHint: "Board, terminal, new task, menu",
   allProjects: "All",
   boardHint: "Drag a card to change its status · click to open · right-click for more",
   emptyColumn: "Nothing here",

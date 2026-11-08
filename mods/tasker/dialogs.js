@@ -381,13 +381,22 @@ export const Dialogs = {
       .hover((s) => s.bg(t.hover)).on_click(onClick).child(icon(iconName, 13, t.muted)).child(div().flex_1().truncate().child(label));
     const sep = () => div().h(1).my(4).bg(t.border);
     const has = (proj.repos ?? []).length > 0;
+    const at = has ? act.projectPlace(proj, home()) : null;
+    // Plan (its board, a task), work (a terminal or an agent across its repositories), manage.
     return v_flex().p(5).text_size(12.5)
-      .child(div().px(8).pt(4).pb(6).text_size(11).text_color(t.dim).truncate().child(has ? proj.repos.join(" · ") : S.projectNoRepos))
+      .child(h_flex().px(8).pt(4).pb(6).gap(6).items_center()
+        .child(div().size(8).rounded(2).flex_none().bg(projectColor(proj)))
+        .child(div().flex_1().min_w(0).truncate().font_semibold().child(proj.name))
+        .child(div().flex_none().text_size(11).text_color(t.dim).child(has ? S.reposCount(proj.repos.length) : S.noRepos)))
+      .child(item("p-board", "square-kanban", S.projectBoard, () => { close(); act.openBoard(proj); }))
+      .child(item("p-task", "plus", `${S.newTaskTitle}…`, () => { close(); openDialog("task", { project: proj.id }); }))
+      .child(sep())
       .when(has, (el) => el
+        .child(div().px(8).pb(2).text_size(11).text_color(t.dim).truncate().child(S.workIn(tilde(at.folder, home()))))
         .child(item("p-term", "square-terminal", S.projectTerminal, () => { close(); act.openInProject(proj); }))
         .children(this.agentList.map((a) => item(`p-ag-${a.key}`, "bot", S.newAgent(a.name), () => { close(); act.openInProject(proj, a.run); })))
         .child(sep()))
-      .child(item("p-task", "plus", `${S.newTaskTitle}…`, () => { close(); openDialog("task", { project: proj.id }); }))
+      .when(!has, (el) => el.child(div().px(8).py(4).text_size(11).text_color(t.dim).child(S.projectNoRepos)).child(sep()))
       .child(item("p-edit", "pencil", `${S.editProjectItem}…`, () => { close(); openDialog("project", { project: proj.id }); }))
       .when(this.spacesOf(proj.repos ?? [], proj.id).length > 0, (el) => el.child(item("p-close", "circle-x", `${S.closeProject}…`, () => { close(); openDialog("confirm-close", { repos: proj.repos, name: proj.name, project: proj.id }); })));
   },

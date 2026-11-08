@@ -10,12 +10,12 @@ const SIZES = {
   issues: { kind: "dialog", width: 540, height: 460 },
   archive: { kind: "dialog", width: 460, height: 230 },
   "confirm-delete": { kind: "dialog", width: 420, height: 190 },
-  settings: { kind: "dialog", width: 480, height: 610 },
+  settings: { kind: "dialog", width: 480, height: 700 },
   menu: { kind: "popup", width: 270, height: 410 },
   later: { kind: "dialog", width: 420, height: 200 },
   loose: { kind: "popup", width: 240, height: 150 },
   repo: { kind: "popup", width: 250, height: 370 },
-  "project-menu": { kind: "popup", width: 270, height: 290 },
+  "project-menu": { kind: "popup", width: 280, height: 350 },
   "confirm-close": { kind: "dialog", width: 440, height: 200 },
 };
 

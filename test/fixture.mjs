@@ -63,6 +63,10 @@ const term = (address, space, tab, status, extra = {}) => ({ address, state: "li
 const tab = (id, index, extra = {}) => ({ id, index, name: String(index), named: false, active: index === 1, status: null, panes: 1, zoomed: false,
   settled: false, settled_at: null, changed_at: null, working_since: null, ...extra });
 
+export const CLAUDE_USAGE = JSON.stringify({ type: "control_response", response: { subtype: "success", request_id: "tasker-usage", response: {
+  subscription_type: "team", rate_limits_available: true,
+  rate_limits: { five_hour: { utilization: 28, resets_at: new Date(Date.now() + 3600000).toISOString() }, seven_day: { utilization: 74, resets_at: new Date(Date.now() + 3 * 86400000).toISOString() } } } } });
+
 export const FILE = () => `${H.appHome}/data/tasker/tasks.json`;
 
 export function world({ tasks: extraTasks = [], projects: extraProjects, settings } = {}) {
@@ -162,11 +166,14 @@ function fakeExec(cmd, args, opts) {
   if (cmd === "sh" && args.join(" ").includes("grep")) {
     return ok('"model":"claude-opus-5-5"\n"effort":"high"\n"input_tokens":12\n"cache_read_input_tokens":200000\n"cache_creation_input_tokens":3000\n"output_tokens":800\n');
   }
+  if (cmd === "sh" && String(args[0]).endsWith("claude-usage.sh")) return ok(CLAUDE_USAGE);
+  if (cmd === "sh" && args.join(" ").includes("rollout-*.jsonl")) return ok("/home/me/.codex/sessions/2026/11/07/rollout-2026-11-07T10-00-00-0aa1-bb22.jsonl\n");
   if (cmd === "sh" && args.join(" ").includes("HOME")) return ok("/home/remote");
-  if (cmd === "lsof") return ok("p3007\nn/home/me/.codex/sessions/2026/11/07/rollout-1.jsonl\n");
+  if (cmd === "lsof") return ok("p3007\nn/home/me/.codex/sessions/2026/11/07/rollout-2026-11-07T10-00-00-0aa1b2c3-1111-2222-3333-444455556666.jsonl\n");
   if (cmd === "tail") {
     return ok(['{"cut', JSON.stringify({ type: "turn_context", payload: { model: "gpt-5.5-codex", effort: "medium", cwd: "/srv/api" } }),
-      JSON.stringify({ type: "event_msg", payload: { type: "token_count", info: { last_token_usage: { input_tokens: 51000 }, model_context_window: 272000 } } })].join("\n"));
+      JSON.stringify({ type: "event_msg", payload: { type: "token_count", info: { last_token_usage: { input_tokens: 51000 }, model_context_window: 272000 },
+        rate_limits: { limit_id: "codex", primary: { used_percent: 8, window_minutes: 300, resets_at: Math.round(Date.now() / 1000) + 3600 }, secondary: { used_percent: 92, window_minutes: 10080, resets_at: Math.round(Date.now() / 1000) + 86400 } } } })].join("\n"));
   }
   return ok("");
 }

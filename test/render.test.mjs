@@ -93,8 +93,8 @@ test("sidebar: the key commands", async () => {
   for (const c2 of ["board", "jump", "view", "new", "focus"]) view.command(c2, cx());
 });
 
-for (const dialog of ["task", "project", "menu", "repo", "jump", "issues", "archive", "settings", "confirm-delete"]) {
-  for (const extra of [{}, { task: "blocked1", project: "pa", repo: "~/dev/app" }, { task: "review1", repo: "~/dev/web" }]) {
+for (const dialog of ["task", "project", "menu", "repo", "jump", "issues", "archive", "settings", "confirm-delete", "loose"]) {
+  for (const extra of [{}, { task: "blocked1", project: "pa", repo: "~/dev/app", tab: "tb4" }, { task: "review1", repo: "~/dev/web", tab: "tb3", attach: "tb4" }]) {
     test(`dialog ${dialog} ${JSON.stringify(extra)}`, async () => {
       const { view, c } = await mount({ dialog, overlay: "ov1", ...extra });
       assert.deepEqual(c.errors.map(String), []);

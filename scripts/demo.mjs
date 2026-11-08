@@ -4,6 +4,7 @@
 // agents (scripts/fake-agent.sh) working, blocked on a question and done.
 //
 //   node scripts/demo.mjs          set it up (your tasks.json is put aside first)
+//   node scripts/demo.mjs --adopt <tab id>   also show one of your real agent tabs as a demo task
 //   node scripts/demo.mjs --clean  close the demo spaces, delete ~/tasker-demo, restore your tasks
 //
 // Nothing here touches your own spaces or repositories.
@@ -62,7 +63,10 @@ function setup() {
   const w1 = herdr("space.new", { folder: abs(web), tab: "Add OAuth login", argv: agent("Add OAuth login", "working") });
   const w2 = herdr("tab.new", { space: w1.space, name: "Pick a database", folder: abs(web), argv: agent("Pick a database", "blocked", "Sessions: Postgres or SQLite?") });
   const a1 = herdr("space.new", { folder: abs(api), tab: "Rate limiter", argv: agent("Rate-limit the public API", "done") });
-  const b1 = herdr("space.new", { folder: abs(book) });
+  // An agent in no task: the "Not in a task" section and the board's No task lane.
+  const b1 = herdr("space.new", { folder: abs(book), tab: "docs search", argv: agent("Try a search box for the docs", "idle") });
+  // Optionally, a real agent tab of yours shown as a demo task (its real model and effort): --adopt <tab id>.
+  const adopt = process.argv.includes("--adopt") ? process.argv[process.argv.indexOf("--adopt") + 1] : null;
   writeFileSync(STATE, JSON.stringify({ spaces: [w1.space, a1.space, b1.space] }));
 
   mkdirSync(dirname(FILE), { recursive: true });
@@ -84,7 +88,9 @@ function setup() {
       task({ title: "Pick a database for sessions", project: "acme", repo: web, status: "doing", tabs: [w2.tab], agent_ms: 12 * 60000 }),
       task({ title: "Rate-limit the public API", project: "acme", repo: api, status: "review", priority: 1, tabs: [a1.tab], agent_ms: 33 * 60000,
         issue: { number: 31, url: "https://github.com/example/acme-api/issues/31", body: "" } }),
-      task({ title: "Fix the flaky checkout test", project: "acme", repo: web, priority: 1, due: day(0), next_step: "Reproduce with --repeat 50" }),
+      // Its agent ran yesterday and is gone: the detail offers Resume agent.
+      task({ title: "Fix the flaky checkout test", project: "acme", repo: web, priority: 1, due: day(0), next_step: "Reproduce with --repeat 50",
+        sessions: [{ app: "claude", id: "3f2c9a1e-5b7d-4e8a-9c0f-1a2b3c4d5e6f", cwd: web, at: now - 20 * 3600000 }], agent_ms: 25 * 60000 }),
       task({ title: "Write the onboarding guide", project: "book", repo: book, priority: 2, due: day(4), estimate: "3h" }),
       task({ title: "Upgrade to Node 24", project: "acme", repo: api, priority: 3 }),
       task({ title: "Pricing page copy", project: "acme", repo: web, status: "waiting", next_step: "Waiting on design", updated: now - 5 * DAY }),
@@ -92,6 +98,7 @@ function setup() {
       task({ title: "Import the old wiki", project: "book", repo: book, status: "inbox" }),
       task({ title: "Ship the v1.4 changelog", project: "book", repo: book, status: "done", done_at: now - 2 * 3600000 }),
       task({ title: "Rotate the API keys", project: "acme", repo: api, status: "done", done_at: now - 2 * DAY }),
+      ...(adopt ? [task({ title: "Polish the README", project: "book", repo: book, status: "doing", next_step: "Add a quick start", tabs: [adopt], agent_ms: 38 * 60000 })] : []),
     ],
   };
   writeFileSync(FILE, JSON.stringify(data, null, 1) + "\n");

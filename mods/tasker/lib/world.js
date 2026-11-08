@@ -4,6 +4,7 @@
 import { place } from "./git.js";
 import { report, word } from "./agentinfo.js";
 import { tilde, untilde, base, OPEN, RANK, byUrgency } from "./util.js";
+import { S } from "../strings.js";
 
 // Live sub-agents of `addr`, depth first.
 function kids(ts, addr, depth = 1) {
@@ -89,7 +90,9 @@ export function nowView(w, data) {
   const next = open.filter((x) => !used.has(x.t.id) && ["next", "doing", "waiting"].includes(x.t.status)).sort((a, b) => byUrgency(a.t, b.t));
   const inbox = open.filter((x) => !used.has(x.t.id) && x.t.status === "inbox").sort((a, b) => byUrgency(a.t, b.t));
   const loose = (s) => w.untracked.filter((u) => u.top === s);
-  return { needs, review, working, stalled, next, inbox, untrackedNeeds: loose("blocked"), untrackedDone: loose("done"), untrackedWorking: loose("working") };
+  // Agents in no task that need nothing now: the "Not in a task" inbox.
+  const idle = w.untracked.filter((u) => u.agents.length && !["blocked", "done", "working"].includes(u.top));
+  return { needs, review, working, stalled, next, inbox, untrackedNeeds: loose("blocked"), untrackedDone: loose("done"), untrackedWorking: loose("working"), untrackedIdle: idle };
 }
 
 // The Projects outline: project → repo → tasks (+ untracked tabs).
@@ -135,4 +138,21 @@ export function projectTree(w, data, h, filters) {
     x.top = [...x.loose, ...repos.flatMap((r) => [...r.tasks, ...r.untracked])].reduce((m, t) => ((RANK[t.top] ?? 0) > (RANK[m] ?? 0) ? t.top : m), null);
   }
   return { projects, orphan };
+}
+
+// A tab outside any task, by what people recognise: its name, the agent's title,
+// else the program and the folder it's in (never a bare address like "t4").
+export function untrackedName(u) {
+  if (u.where.tab.named && u.where.tab.name) return u.where.tab.name;
+  const e = u.agents[0];
+  const p0 = u.panes[0];
+  // A shell's title is often just its address ("t4", "vps/t1q"): not a name.
+  const addresses = new Set([e?.a.address, p0?.terminal].filter(Boolean).flatMap((a) => [a, a.split("/").pop()]));
+  const isAddress = (x) => !x || addresses.has(x);
+  const title = [e?.term?.title, e?.a.title, p0?.title].find((x) => !isAddress(x));
+  if (title) return title;
+  const prog = e?.a.program ?? p0?.program;
+  const folder = base(p0?.cwd ?? e?.term?.cwd ?? "");
+  const who = prog && prog.key !== "program" ? prog.name : S.terminal;
+  return folder ? `${who} · ${folder}` : who;
 }

@@ -111,6 +111,18 @@ export function shortModel(m) {
   return m.replace(/^claude-/, "");
 }
 
+// When a limit resets: "18:50" today, "tue 22:00" later.
+export function resetsLabel(ms, now = Date.now()) {
+  if (!ms) return null;
+  const d = new Date(ms);
+  const hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  if (localDay(ms) === localDay(now)) return hm;
+  return `${["sun", "mon", "tue", "wed", "thu", "fri", "sat"][d.getDay()]} ${hm}`;
+}
+
+// How an issue is named: "#12" on GitHub, "ENG-12" on Linear.
+export const issueLabel = (issue) => (issue ? (issue.source === "linear" ? String(issue.number) : `#${issue.number}`) : "");
+
 export const kilo = (n) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(n));
 
 // Next-up order: priority, then due date, then oldest.

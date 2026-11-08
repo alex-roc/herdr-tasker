@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>tasker · a task list for your coding agents</title>
-<meta name="description" content="tasker is a layout for the Herdr app: projects, repositories and tasks over the coding agents you run, with what needs you first.">
+<title>tasker · you plan, your agents move the task</title>
+<meta name="description" content="tasker is a light, local task manager for the coding agents you run in the Herdr app. You plan; your agents move the task; you close it.">
 <meta property="og:title" content="tasker for Herdr">
 <meta property="og:description" content="A task list for your coding agents: what needs you first, a board, and each agent's model, effort and context.">
 <meta property="og:image" content="https://alex-roc.github.io/herdr-tasker/img/overview.png">
@@ -31,8 +31,8 @@
   <section class="hero">
     <div class="wrap">
       <div>
-        <h1>Know which agent needs you next.</h1>
-        <p class="lede">tasker is a layout for the <a href="https://herdr.dev">Herdr app</a>. It ties the agents you run to the work they're for: <strong>projects, repositories and tasks</strong>, ordered by what moves things forward.</p>
+        <h1>You plan. Your agents move the task. You close it.</h1>
+        <p class="lede">tasker is a light, local task manager for the coding agents you run in the <a href="https://herdr.dev">Herdr app</a>: <strong>projects, repositories and tasks</strong>, ordered by what needs you first. One mod and one file you own; no service, no account.</p>
         <div class="install">
           <div class="cmd"><span id="cmd">git clone https://github.com/alex-roc/herdr-tasker
 cd herdr-tasker &amp;&amp; ./install.sh --keys</span><button class="copy" data-copy="cmd" type="button">Copy</button></div>
@@ -110,7 +110,7 @@ cd herdr-tasker &amp;&amp; ./install.sh --keys</span><button class="copy" data-c
   <section class="section" id="flow">
     <div class="wrap">
       <h2>Tasks follow their agents</h2>
-      <p class="intro">You plan; the agents' state moves the rest. Nothing is marked done unless you do it.</p>
+      <p class="intro">You plan; the agents' state moves the rest. No pipeline to set up, and nothing is marked done unless you do it.</p>
       <ol class="track track-wrap">
         <li style="--c:var(--muted)"><b>Inbox</b><span>Ideas and imported GitHub issues.</span></li>
         <li style="--c:var(--text)"><b>Next</b><span><em>You</em> plan it, with a priority and a due date.</span></li>
@@ -118,6 +118,34 @@ cd herdr-tasker &amp;&amp; ./install.sh --keys</span><button class="copy" data-c
         <li style="--c:var(--done)"><b>Review</b><span>Moves here <em>by itself</em> when its agent stops.</span></li>
         <li style="--c:var(--ok)"><b>Done</b><span>Only <em>you</em> mark it done, after looking.</span></li>
       </ol>
+    </div>
+  </section>
+
+  <section class="section" id="more">
+    <div class="wrap">
+      <h2>Keeps up with how you work</h2>
+      <p class="intro">The parts that save a trip to another window.</p>
+      <div class="views">
+        <div class="view wide split">
+          <img src="img/detail-resume.png" width="736" height="876" alt="A task whose agent is gone, with Resume agent above Start agent." loading="lazy">
+          <div>
+            <h3>Resume after a restart</h3>
+            <p>tasker remembers the Claude Code or Codex conversation each task's agent was in. After a reboot, or once you closed its tab, <em>Resume agent</em> picks it up where it was, in its folder, tied to the task again.</p>
+            <h3>Plan limits at a glance</h3>
+            <img src="img/statusbar.png" width="680" height="60" alt="The status bar: Claude 30% wk 34%, Codex 0% wk 12%." class="bar" loading="lazy">
+            <p>Claude Code's and Codex's 5-hour and weekly limits in the status bar, amber from 70% and red from 90%; hover for when each resets. tasker asks your own <code>claude</code> CLI, reads no token and sends no prompt.</p>
+          </div>
+        </div>
+        <div class="view wide split">
+          <img src="img/board-lane.png" width="1350" height="750" alt="The board's No task lane with an agent, beside the Inbox and Next columns." loading="lazy">
+          <div>
+            <h3>Agents that aren't a task yet</h3>
+            <p>Started an agent on a hunch? It waits under <em>Not in a task</em> in Now and in the board's <em>No task</em> lane. Drag it onto a column, press <em>Make task</em>, or add it to a task you already have.</p>
+            <h3>Issues from GitHub and Linear</h3>
+            <p>Import open GitHub issues of a repository, or the Linear issues assigned to you, into the Inbox. Linear's priority and due date come along, and the agent you start gets the issue in its first message.</p>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 

@@ -88,7 +88,7 @@ async function claude(pid, on) {
   if (!last.model) last = await pick(CLAUDE_TAIL);
   const n = (k) => Number(last[k] ?? 0);
   const ctx = n("input_tokens") + n("cache_read_input_tokens") + n("cache_creation_input_tokens") + n("output_tokens");
-  return { app: "claude", model: last.model ?? null, effort: last.effort ?? null, ctx: ctx || null, ctxMax: null, session: session.sessionId };
+  return { app: "claude", model: last.model ?? null, effort: last.effort ?? null, ctx: ctx || null, ctxMax: null, session: session.sessionId, cwd: session.cwd };
 }
 
 async function codexFile(pid, cwd, on) {
@@ -111,16 +111,18 @@ async function codexFile(pid, cwd, on) {
 async function codex(pid, cwd, on) {
   const file = await codexFile(pid, cwd, on);
   if (!file) return null;
-  let model = null, effort = null, ctx = null, ctxMax = null;
+  let model = null, effort = null, ctx = null, ctxMax = null, where = null;
   for (const r of records(await tail(file, on))) {
-    if (!model && r?.type === "turn_context") { model = r.payload?.model ?? null; effort = r.payload?.effort ?? null; }
+    if (!model && r?.type === "turn_context") { model = r.payload?.model ?? null; effort = r.payload?.effort ?? null; where = r.payload?.cwd ?? null; }
     if (ctx == null && r?.payload?.type === "token_count" && r.payload.info) {
       ctx = r.payload.info.last_token_usage?.input_tokens ?? null;
       ctxMax = r.payload.info.model_context_window ?? null;
     }
     if (model && ctx != null) break;
   }
-  return { app: "codex", model, effort, ctx, ctxMax };
+  // rollout-<time>-<session id>.jsonl: the id `codex resume` takes.
+  const session = /-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/.exec(file)?.[1] ?? null;
+  return { app: "codex", model, effort, ctx, ctxMax, session, cwd: where ?? cwd ?? null };
 }
 
 // Cached per process: looked at again when the agent's state changes, or every

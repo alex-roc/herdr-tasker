@@ -37,6 +37,7 @@
       <ul>
         <li><a href="#worktree">A bug fixed in its own worktree</a></li>
         <li><a href="#issues">Issues into a week of work</a></li>
+        <li><a href="#reboot">Back after a reboot</a></li>
         <li><a href="#parallel">Several agents, one list</a></li>
         <li><a href="#adopt">Track work already started</a></li>
         <li><a href="#agents-file">Agents that file their own tasks</a></li>
@@ -61,14 +62,25 @@
 
       <section class="example" id="issues">
         <h2>Issues into a week of work</h2>
-        <p class="when">Your GitHub repository has a pile of open issues and you want a plan you can actually work through.</p>
+        <p class="when">GitHub or Linear has a pile of open issues and you want a plan you can actually work through.</p>
         <ol>
-          <li>In Projects, right-click the repository → <strong>Import GitHub issues</strong>. Tick the ones worth doing; they arrive in the <strong>Inbox</strong> with the issue's link and text attached.</li>
+          <li>In Projects, right-click the repository → <strong>Import GitHub issues</strong> (or <strong>Import Linear issues</strong> for the ones assigned to you, with their priority and due date). Tick the ones worth doing; they arrive in the <strong>Inbox</strong> with the issue's link and text attached.</li>
           <li>Open the board (<kbd>cmd</kbd> <kbd>shift</kbd> <kbd>b</kbd>) and drag what you'll do this week from Inbox to <strong>Next</strong>.</li>
           <li>In the list, set priorities with <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> and due dates like <code>wed</code> or <code>fri</code>. Up next sorts by priority, then due date.</li>
           <li>Start an agent on the top one with <kbd>l</kbd>. It gets the issue's text in its first message, so it starts with the full report.</li>
         </ol>
         <p>Issues you've already imported don't show up again in the list.</p>
+      </section>
+
+      <section class="example" id="reboot">
+        <h2>Back after a reboot</h2>
+        <p class="when">The machine restarted overnight. Three tasks had agents mid-conversation.</p>
+        <ol>
+          <li>Open Herdr and switch to tasker. The tasks are where you left them; their agents are gone.</li>
+          <li>Select the first one and press <kbd>r</kbd> (or <strong>Resume agent</strong> in the detail). Its Claude Code or Codex conversation continues in the folder it was in, in a new tab tied to the task.</li>
+          <li>Do the same for the others. Each moves back to Doing as soon as its agent starts working.</li>
+        </ol>
+        <p>Glance at the status bar before you start a big batch: it shows how much of your Claude and Codex limits is left, and when each resets.</p>
       </section>
 
       <section class="example" id="parallel">
@@ -88,7 +100,8 @@
         <p class="when">You opened a terminal and started an agent before thinking of it as a task. Now it's grown.</p>
         <ol>
           <li>Find its tab in the list: under its repository in Projects, or in Now if it's working, finished or waiting on you. It's named after its title, or what runs in it and where, like <em>zsh · acme-web</em>.</li>
-          <li>Click <strong>Make task</strong>. tasker creates a task in Doing, named after the tab, tied to it.</li>
+          <li>Click <strong>Make task</strong>. tasker creates a task named after the tab and tied to it: in Doing if the agent is working, Review if it finished, Next if it's idle. On the board, drag its card from the <strong>No task</strong> lane onto the column you want instead.</li>
+          <li>Or right-click it → <strong>Add to task…</strong> and pick an open task: the tab joins that task.</li>
           <li>Press <kbd>e</kbd> to give it a real title, a project and a due date. From now on it moves with its agent like any other.</li>
         </ol>
       </section>

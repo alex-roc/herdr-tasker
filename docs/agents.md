@@ -21,7 +21,7 @@ layout reloads it within a second of any save, from any program.
    `history`, so the person sees when it moved. For `done`, set `done_at` too.
 4. **Don't mark the person's tasks done** unless they asked: put finished work in `review`.
 5. **Don't delete tasks.** Set `"deleted": true` if one must go; tasker hides it.
-6. **Leave `tabs`, `agent_ms`, `worktree` and `branch` alone** unless you know why: tasker keeps them.
+6. **Leave `tabs`, `sessions`, `agent_ms`, `worktree` and `branch` alone** unless you know why: tasker keeps them.
 7. Never put secrets in a task. The file is plain text in the person's home.
 
 ## Example (Node)

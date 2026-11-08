@@ -7,7 +7,7 @@ import { S } from "./strings.js";
 import { setStatus } from "./lib/store.js";
 import { diffStat } from "./lib/git.js";
 import { send, pullRequest, openUrl } from "./lib/actions.js";
-import { RANK, duration, shortModel, kilo, base, untilde, STATUSES } from "./lib/util.js";
+import { RANK, duration, shortModel, kilo, base, untilde, STATUSES, issueLabel } from "./lib/util.js";
 import { STATUS_ICON, statusIcon, statusColor, prioColor, dueChip, agentMark, button, chip, programIcon, icon, onScreen, agentFor } from "./lib/ui.js";
 import { openDialog } from "./lib/open.js";
 
@@ -131,8 +131,11 @@ export const Detail = {
       .text_size(11).font_semibold().bg(task.priority === n ? prioColor(t, n) + "2a" : t.chrome).text_color(task.priority === n ? prioColor(t, n) : t.dim)
       .hover((el) => el.bg(t.hover)).tooltip(S.priorityHint[n]).on_click((_e, cx) => this.upd(cx, task.id, (y) => { y.priority = n; })).child(S.priorityLabel[n])));
 
+    const last = task.sessions?.at(-1);
     const actions = h_flex().gap(6).flex_wrap()
-      .when(!e, (el) => el.child(button(t, "d-launch", S.start, (_e, cx) => this.launch(cx, task, false), { primary: true, small: true, iconName: "play" }))
+      .when(!e && Boolean(last), (el) => el.child(button(t, "d-resume", S.resume, (_e, cx) => this.resume(cx, task),
+        { primary: true, small: true, iconName: "rotate-ccw", tooltip: last ? S.resumeHint(last.app, duration(now - last.at)) : null })))
+      .when(!e, (el) => el.child(button(t, "d-launch", S.start, (_e, cx) => this.launch(cx, task, false), { primary: !last, small: true, iconName: "play" }))
         .when(Boolean(task.repo) && !task.worktree, (el) => el.child(button(t, "d-launch-wt", S.startWorktree, (_e, cx) => this.launch(cx, task, true), { small: true, iconName: "git-fork", tooltip: S.startWorktreeHint }))))
       .when(Boolean(e), (el) => el.child(button(t, "d-focus", S.focusAgent, () => run("pane.focus", { pane: e.a.pane }), { primary: true, small: true, iconName: "arrow-right" })))
       .when(task.status === "review", (el) => el.child(button(t, "d-done", S.markDone, (_e, cx) => this.upd(cx, task.id, (y) => setStatus(y, "done")), { small: true, iconName: "circle-check" })))
@@ -180,7 +183,7 @@ export const Detail = {
         .when(Boolean(due), (el) => el.child(due))
         .when(Boolean(task.estimate), (el) => el.child(chip(t, S.estimateChip(task.estimate), t.dim)))
         .when(Boolean(task.issue?.url), (el) => el.child(div().id("d-issue").text_color(t.accent).cursor_pointer().hover((s) => s.opacity(0.8))
-          .on_click(() => openUrl(task.issue.url)).child(`#${task.issue.number}`))))
+          .on_click(() => openUrl(task.issue.url)).child(issueLabel(task.issue)))))
       .child(v_flex().pt(10).gap(6).child(statusRow).child(prioRow))
       .child(div().pt(10).child(actions))
       .when(Boolean(task.next_step), (el) => el.child(this.section(t, S.nextStep, div().text_color(t.foreground).child(task.next_step))))

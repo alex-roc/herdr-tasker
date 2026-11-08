@@ -29,7 +29,7 @@
 <main class="wrap">
   <div class="page-head">
     <h1>From install to a finished task</h1>
-    <p>Nine short steps. You'll set up a project, start an agent on a task, answer its question, review what it did and mark it done.</p>
+    <p>Ten short steps. You'll set up a project, start an agent on a task, answer its question, review what it did, mark it done, and pick work up again after a restart.</p>
   </div>
 
   <div class="doc">
@@ -42,6 +42,7 @@
         <li><a href="#start">Start an agent</a></li>
         <li><a href="#answer">Answer when it asks</a></li>
         <li><a href="#review">Review and finish</a></li>
+        <li><a href="#resume">Pick up after a restart</a></li>
         <li><a href="#board">Plan on the board</a></li>
         <li><a href="#keys">Keys and settings</a></li>
       </ol>
@@ -90,7 +91,8 @@ cd herdr-tasker
           <tr><td><code>2026-12-24</code></td><td>exactly that day</td></tr>
         </table>
         <p>The date it understood appears beside the label as you type. Use <strong>Next step</strong> for the very next action: it's shown under the task in the list, and the agent gets it too.</p>
-        <p>Already have a backlog on GitHub? Right-click the repository → <strong>Import GitHub issues</strong>, tick the ones you want, and they land in the Inbox with the issue attached.</p>
+        <p>Already have a backlog? Right-click the repository → <strong>Import GitHub issues</strong> or <strong>Import Linear issues</strong>, tick the ones you want, and they land in the Inbox with the issue attached. From Linear, the issues assigned to you come with their priority and due date.</p>
+        <div class="note"><p>Linear needs a personal API key (Linear → Settings → Security &amp; access → Personal API keys). Export it as <code>LINEAR_API_KEY</code> in your shell profile, or save it alone in <code>~/.config/herdr-app/data/tasker/linear-key</code>. tasker only reads from Linear.</p></div>
       </section>
 
       <section class="step" id="start">
@@ -101,7 +103,7 @@ cd herdr-tasker
         <p>That's the model, the reasoning effort, how much context it holds, and how long it has been at it. tasker reads these from Claude Code's and Codex's own logs; other agents show their state and time.</p>
         <h3>In its own worktree</h3>
         <p>Press <kbd>w</kbd> (or <strong>Start in a worktree</strong>) to keep the work apart from your checkout: tasker creates the branch <code>task/&lt;name&gt;</code> in <code>~/.herdr/worktrees/&lt;repo&gt;/&lt;name&gt;</code> first and starts the agent there. Herdr's own worktree tools see it too.</p>
-        <div class="note" style="--c:var(--working)"><p>Started an agent before tasker knew about it? Its tab shows up in the list with a <strong>Make task</strong> button. One click and it's tracked like the rest.</p></div>
+        <div class="note" style="--c:var(--working)"><p>Started an agent before tasker knew about it? It shows up in the list (under <strong>Not in a task</strong> when it's idle) with a <strong>Make task</strong> button. Right-click it for <strong>Add to task…</strong> to tie it to a task you already have.</p></div>
       </section>
 
       <section class="step" id="answer">
@@ -136,6 +138,17 @@ cd herdr-tasker
         </div>
       </section>
 
+      <section class="step" id="resume">
+        <h2>Pick up after a restart</h2>
+        <div class="side-by-side">
+          <figure><img src="img/detail-resume.png" width="736" height="876" alt="A task whose agent is gone: Resume agent is the first button." loading="lazy"></figure>
+          <div>
+            <p>While a Claude Code or Codex agent works on a task, tasker remembers which conversation it's in. If the agent is gone (you restarted the machine, or closed its tab), the task's detail shows <strong>Resume agent</strong> first.</p>
+            <p>It runs <code>claude --resume &lt;id&gt;</code> or <code>codex resume &lt;id&gt;</code> in the folder the agent was in, and ties the new tab to the task. The agent keeps its whole conversation, so it doesn't need a first message. In the list, <kbd>r</kbd> does the same.</p>
+          </div>
+        </div>
+      </section>
+
       <section class="step" id="board">
         <h2>Plan on the board</h2>
         <p>Press <kbd>cmd</kbd> <kbd>shift</kbd> <kbd>b</kbd> or the board button to open the board as a tab.</p>
@@ -144,7 +157,9 @@ cd herdr-tasker
           <li>Drag a card to another column to change its status; click it to open its detail.</li>
           <li>Filter by project with the pills at the top.</li>
           <li>Doing shows how many tasks are in progress against your limit, and turns amber when you're over it.</li>
+          <li>Agents in no task wait in the <strong>No task</strong> lane on the left: drag one onto a column to make it a task with that status.</li>
         </ul>
+        <figure><img src="img/board-lane.png" width="1350" height="750" alt="The No task lane with one agent, next to the Inbox and Next columns." loading="lazy"></figure>
       </section>
 
       <section class="step" id="keys">
@@ -157,6 +172,7 @@ cd herdr-tasker
           <tr><td><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></td><td>priority high, normal, low</td></tr>
           <tr><td><kbd>n</kbd> <kbd>e</kbd></td><td>new task, edit task</td></tr>
           <tr><td><kbd>l</kbd> <kbd>w</kbd></td><td>start an agent, start it in a worktree</td></tr>
+          <tr><td><kbd>r</kbd></td><td>resume the task's last agent conversation</td></tr>
           <tr><td><kbd>/</kbd></td><td>find a task</td></tr>
           <tr><td><kbd>tab</kbd></td><td>switch between Now and Projects</td></tr>
         </table>
@@ -170,6 +186,7 @@ cd herdr-tasker
               <li><strong>Doing limit</strong>: how many tasks can be in progress before the status bar warns you.</li>
               <li><strong>Stalled after</strong>: days without movement before a task shows under <em>Stalled</em>.</li>
               <li><strong>Agent to start</strong>: which of your installed agents <em>Start agent</em> runs.</li>
+              <li><strong>Plan usage</strong>: Claude Code's and Codex's limits in the status bar, on or off.</li>
             </ul>
             <p>That's the whole loop. Next, the <a href="examples.html">examples</a> show workflows built on it.</p>
           </div>

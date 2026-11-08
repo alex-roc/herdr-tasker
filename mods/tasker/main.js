@@ -12,9 +12,10 @@ import { openDialog } from "./lib/open.js";
 import { RepoCache } from "./lib/git.js";
 import { AgentInfo } from "./lib/agentinfo.js";
 import { build } from "./lib/world.js";
+import { Usage } from "./lib/usage.js";
 import { sharedCache } from "./lib/cache.js";
 import { launch } from "./lib/actions.js";
-import { today, localDay } from "./lib/util.js";
+import { today, localDay, resetsLabel } from "./lib/util.js";
 import { Sidebar } from "./sidebar.js";
 import { Detail } from "./detail.js";
 import { Dialogs } from "./dialogs.js";
@@ -38,7 +39,10 @@ export default class Tasker extends View {
     else if (this.role === "detail") this.initDetail(cx);
     else if (this.role === "dialog") this.initDialog(cx);
     else if (this.role === "board") this.initBoard(cx);
-    else cx.timer.every(60000, (cx) => cx.notify());
+    else {
+      this.usage = new Usage();
+      cx.timer.every(60000, (cx) => cx.notify());
+    }
   }
 
   // Herdr's live data joined with the tasks, once per render.
@@ -81,10 +85,10 @@ export default class Tasker extends View {
     return e.term?.status_ms ?? fromTab ?? this.since[e.a.address]?.at ?? null;
   }
 
-  launch(cx, task, worktree) {
+  launch(cx, task, worktree, resume = null) {
     cx.spawn(async () => {
       try {
-        const pending = await launch(this.store, task, { worktree });
+        const pending = await launch(this.store, task, { worktree, resume });
         setShared("tasker.pending", [...(shared("tasker.pending") ?? []), { ...pending, beforeTabs: [...pending.beforeTabs], beforeSpaces: [...pending.beforeSpaces] }]);
       } catch (e) {
         notify({ title: S.launchFailed, body: String(e?.message ?? e), level: "error" });
@@ -92,7 +96,13 @@ export default class Tasker extends View {
     });
   }
 
-  renderStatus() {
+  // Continues the task's last agent conversation (after a restart, or a closed tab).
+  resume(cx, task) {
+    const s = task?.sessions?.at(-1);
+    if (s) this.launch(cx, task, false, s);
+  }
+
+  renderStatus(cx) {
     const t = theme();
     const w = this.world;
     const d = this.store.data;
@@ -107,15 +117,34 @@ export default class Tasker extends View {
       .when(Boolean(iconName), (el) => el.child(icon(iconName, 12)))
       .when(Boolean(onClick), (el) => el.cursor_pointer().hover((s) => s.opacity(0.8)).on_click(onClick))
       .child(text);
+    // Plan usage: looked at every few minutes, only with the window in front.
+    if (d.settings.usage && window()?.active) this.usage.refresh(cx);
+    const usage = d.settings.usage ? ["claude", "codex"].map((app) => this.usageItem(t, app, item)).filter(Boolean) : [];
     return h_flex().size_full().px(14).gap(14).items_center().bg(t.chrome).border_t(1).border_color(t.border).text_size(11.5)
       .child(item("st-done", doneToday ? t.ansi2 : t.dim, "circle-check", S.doneToday(doneToday)))
       .child(item("st-doing", over ? t.ansi3 : t.muted, null, over ? S.doingOver(doing, max) : S.doingCount(doing, max)))
       .when(needs > 0, (el) => el.child(item("st-needs", t.blocked, "circle-alert", S.needCount(needs), () => setShared("tasker.view", "now"))))
       .child(item("st-working", working ? t.working : t.dim, "bot", S.workingCount(working)))
       .child(div().flex_1())
+      .children(usage)
       .child(item("st-open", t.dim, null, S.openCount(open.length)))
       .child(div().id("st-settings").text_color(t.dim).cursor_pointer().hover((s) => s.text_color(t.foreground)).tooltip(S.settings)
         .on_click(() => openSettings()).child(icon("settings", 13)));
+  }
+
+  // "Claude 28% wk 34%", colored by the fuller limit; the hover says when each resets.
+  usageItem(t, app, item) {
+    const u = this.usage.get(app);
+    if (!u) return null;
+    const name = S.usageApp[app];
+    const again = (_e, cx) => this.usage.refresh(cx, { force: true });
+    if (!u.five && !u.week) return u.error ? item(`st-u-${app}`, t.dim, null, `${name} !`, again).tooltip(S.usageError(name, u.error)) : null;
+    const top = Math.max(u.five?.pct ?? 0, u.week?.pct ?? 0);
+    const color = top >= 90 ? t.blocked : top >= 70 ? t.ansi3 : t.muted;
+    const w = (x) => (x ? { pct: x.pct, resets: resetsLabel(x.resets) } : null);
+    const asOf = app === "codex" && u.at ? resetsLabel(u.at) : null;
+    return item(`st-u-${app}`, color, null, S.usageItem(name, u.five?.pct, u.week?.pct), again)
+      .tooltip(u.error ? S.usageError(name, u.error) : S.usageHint(name, w(u.five), w(u.week), asOf));
   }
 
   render(cx) {
@@ -127,7 +156,7 @@ export default class Tasker extends View {
     }
     if (this.role === "detail") return this.renderDetail(cx);
     if (this.role === "board") return this.renderBoard(cx);
-    return this.renderStatus();
+    return this.renderStatus(cx);
   }
 }
 

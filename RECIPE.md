@@ -18,6 +18,7 @@ every task by status.
   - **Now**: collapsible sections, header 11px medium in the section's color plus a count and a
     chevron: Needs you (`blocked`), To review (`done`), Working (`working`), Up next (foreground,
     first 7, then "N more" which opens Projects), Stalled (`ansi3`), Inbox (`dim`, first 5).
+    Then **Not in a task** (`dim`): idle agents whose tab belongs to no task.
     Empty: "Nothing needs you. Press n for a new task, or open Projects to see your repositories."
   - **Projects**: a project row (9px colored square, name 12px semibold, count of tasks and loose
     tabs, chevron); under it the tasks without repository, then repository rows (chevron, name,
@@ -34,11 +35,14 @@ every task by status.
     "→ next step". Hover shows a play button on tasks without an agent. Selected row on `selected`.
   - **Loose tab row** (a tab in no task): program icon or terminal icon, its name (the tab's name,
     the agent's title, else "zsh · <folder>", never the address), and a **Make task** button
-    (tooltip "Turn this tab into a task…").
+    (tooltip "Turn this tab into a task…"; the task is Doing if its agent works or waits on you,
+    Review if it finished, else Next). Right-click: a popup (240×150) with Make task, Add to task…
+    (the find dialog in attach mode: open tasks only, picking one ties the tab to it) and Go to agent.
 - **Right column `tasker-detail`, 360px, hidden until a task is selected**: header "Task" with pencil
   and ✕; title 15px with its status icon; repository, due chip, "est. 2h", issue link; a row of status
   icons where only the current one shows its name, and P1–P3; actions (Start agent / Start in a
-  worktree, or Go to agent; Mark done in Review; Show changes); sections in 10.5px uppercase `dim`:
+  worktree, or Go to agent; with no agent and a remembered conversation, Resume agent first (rotate-ccw,
+  tooltip "Continue its last Claude Code conversation (2h ago)"); Mark done in Review; Show changes); sections in 10.5px uppercase `dim`:
   Next step, Notes, Agents (cards: program icon, title, address, state, "opus 5.5 · medium · ctx
   248k · turn 7 · working 1m", the pending question, sub-tasks and sub-agents as a tree), Screen
   (last 8 non-empty lines of the agent's terminal), Changes (branch, "N files +add −del", PR chip
@@ -53,10 +57,15 @@ every task by status.
   selected: mark + title, next step, the question or "model · effort · working 4m", chips (P, due,
   #issue, branch) and the repository. Empty column: a 56px "Nothing here" box. Done shows the last 7
   days. Dragging dims the card and highlights the column under the pointer (`selected` + `accent`
-  border); releasing there sets the status.
+  border); releasing there sets the status. When agents in no task exist, a **No task** lane (190–260px,
+  `canvas`, bot icon, a one-line hint) comes first with a card per agent (mark, name, model · effort ·
+  time, repository); dropping one on a column makes it a task with that status, releasing it on its
+  own lane goes to the agent.
 - **Status bar, 28px**: "✓ N done today" (`ansi2` when > 0), "Doing n/limit" (`ansi3` and "finish
-  something first" when over), "! N need(s) you" (click: Now), "N working", then "N open" and a
-  settings gear.
+  something first" when over), "! N need(s) you" (click: Now), "N working"; on the right plan usage
+  "Claude 28% wk 34%" and "Codex 8% wk 12%" (`muted`, `ansi3` from 70%, `blocked` from 90%, by the
+  fuller limit; tooltip with reset times; click looks again; "Claude !" with the reason on error),
+  "N open" and a settings gear.
 - **Dialogs** (Herdr dialogs, `popover` background): task form 560×660, project 480×500, settings
   460×440, find 520×420, issues 540×460, archive 460×230, delete 420×190; menus are popups (task
   250×290, repository 250×340). Forms scroll and keep their buttons in a footer with a border.
@@ -85,11 +94,18 @@ every task by status.
   open git repositories), status, priority (P1 High, P2 Normal, P3 Low), due (today, tomorrow, fri,
   +3d, 2w, 12-24, 2026-12-24, with "in 3d · 2026-11-10" beside the label, red border when not
   understood), estimate, next step, notes. Enter saves once.
-- Settings: steppers for the Doing limit (1–20) and stalled days (1–60), and the installed agents
-  as pills (the chosen one stays even if not installed).
+- Settings: steppers for the Doing limit (1–20) and stalled days (1–60), the installed agents as
+  pills (the chosen one stays even if not installed), and Plan usage On/Off.
+- Resume: while a local Claude Code or Codex agent runs, its session id and folder are kept on the
+  task (`sessions`, newest 5). Resume runs the agent's `run` + `--resume <id>` (Codex: `resume <id>`)
+  in that folder, with no first message, through the same launch-and-tie path as Start agent.
+- Import issues: GitHub (`gh issue list`) or Linear (GraphQL `viewer.assignedIssues`, not completed or
+  canceled, with a personal API key from `$LINEAR_API_KEY` or `data/tasker/linear-key`; Linear
+  priority 1–2 → P1, 3 → P2, 4 → P3; due date kept). Issues already imported (same URL) are hidden.
+  Linear issues show as "ENG-12", GitHub ones as "#12".
 - Keys in the list: j/k, arrows, enter, space, 1–3, n, e, l, w, /, tab. Layout keys: cmd-j, cmd-k,
   cmd-shift-n, cmd-shift-o, cmd-i, cmd-shift-b. Mod commands: `new`, `jump`, `board`, `view`,
-  `focus`, `settings`, `select:<id>`.
+  `focus`, `settings`, `linear`, `select:<id>`; list key `r` resumes.
 
 ## Built from
 
@@ -113,7 +129,14 @@ every task by status.
   with `tail -c 4MB | LC_ALL=C grep -aoE` for the last `"model"`, `"effort"` and usage counts (16 MB
   if not found); Codex rollout via `lsof -p <pid>` → `turn_context` and `token_count`; on another
   machine, that machine's `$HOME`.
-- Programs: git, gh, hc, tail, grep, lsof, open/xdg-open.
+- Plan usage (`lib/usage.js`, status bar copy only, every 5 min with the window active): Claude via
+  `mods/tasker/bin/claude-usage.sh`, which starts `claude -p --safe-mode --no-session-persistence
+  --input-format stream-json --output-format stream-json` and writes one control request
+  `{"type":"control_request","request":{"subtype":"get_usage"}}`, reading `rate_limits.five_hour`
+  and `seven_day` (`utilization`, `resets_at`) from the `control_response`; Codex from the last
+  `rate_limits` (`primary`/`secondary`: `used_percent`, `window_minutes`, `resets_at`) in its 3 newest
+  rollout logs. A window whose reset passed counts as 0%.
+- Programs: git, gh, hc, tail, grep, lsof, open/xdg-open, claude (usage only); fetch to Linear.
 - Icons: Lucide SVGs in `mods/tasker/icons` (status, header, repository and menu icons, settings,
   trash-2, circle and circle-check for checkboxes).
 

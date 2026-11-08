@@ -1,8 +1,9 @@
 // What tasker does in Herdr and git on a task's behalf.
 
-import { run, exec, hc, knownAgents, home, focused, spaces, panes, window } from "herdr";
+import { run, exec, hc, knownAgents, home, focused, spaces, panes, window, terminals } from "herdr";
+import { untrackedName } from "./world.js";
 import { git, place } from "./git.js";
-import { setStatus } from "./store.js";
+import { setStatus, newTask } from "./store.js";
 import { untilde, tilde, slug } from "./util.js";
 import { S } from "../strings.js";
 
@@ -16,6 +17,21 @@ export async function agentArgv(preferred) {
     if (pick) return pick.run;
   } catch {}
   return [preferred || "claude"];
+}
+
+// How to start the agent `app` (a key of Herdr's agent menu), installed or not.
+async function runOf(app) {
+  try {
+    const a = (await knownAgents()).find((x) => x.key === app && x.installed && x.run?.length);
+    if (a) return a.run;
+  } catch {}
+  return [app];
+}
+
+// The command that continues a conversation: claude --resume <id>, codex resume <id>.
+export async function resumeArgv(session) {
+  const run = await runOf(session.app);
+  return session.app === "codex" ? [...run, "resume", session.id] : [...run, "--resume", session.id];
 }
 
 // The space showing `folder` (or a folder inside it), preferring the selected one.
@@ -54,13 +70,14 @@ async function ensureWorktree(task, others = []) {
 
 // Starts an agent on the task. Returns what to watch for so the new tab can be
 // tied to the task: { task, space | null, beforeTabs, beforeSpaces, at }.
-export async function launch(store, task, { worktree = false } = {}) {
+export async function launch(store, task, { worktree = false, resume = null } = {}) {
   const h = home();
-  const argv = await agentArgv(store.data.settings.agent);
-  const prompt = S.prompt(task);
+  const argv = resume ? await resumeArgv(resume) : await agentArgv(store.data.settings.agent);
+  // A resumed agent already has its conversation: no first message.
+  const prompt = resume ? null : S.prompt(task);
   const beforeSpaces = new Set(spaces().map((s) => s.id));
   const beforeTabs = new Set(spaces().flatMap((s) => (s.tabs ?? []).map((t) => t.id)));
-  let folder = task.worktree ? untilde(task.worktree, h) : task.repo ? untilde(task.repo, h) : null;
+  let folder = resume?.cwd ? untilde(resume.cwd, h) : task.worktree ? untilde(task.worktree, h) : task.repo ? untilde(task.repo, h) : null;
   const patch = {};
   if (worktree && task.repo) {
     const wt = await ensureWorktree(task, store.data.tasks);
@@ -76,8 +93,9 @@ export async function launch(store, task, { worktree = false } = {}) {
   }
   const space = spaceAt(folder);
   const name = task.title.slice(0, 40);
-  if (space) run("tab.new", { space: space.id, name, folder, argv, task: prompt });
-  else run("space.new", { folder, tab: name, argv, task: prompt });
+  const first = prompt ? { task: prompt } : {};
+  if (space) run("tab.new", { space: space.id, name, folder, argv, ...first });
+  else run("space.new", { folder, tab: name, argv, ...first });
   await store.update((d) => {
     const t = d.tasks.find((x) => x.id === task.id);
     if (!t) return false;
@@ -106,6 +124,16 @@ export async function link(store, taskId, tabId, ts) {
   for (const term of ts.filter((x) => x.labels?.["herdr.tab"] === tabId && !x.address.includes("/"))) {
     try { await hc(["label", term.address, `tasker.task=${taskId}`]); } catch {}
   }
+}
+
+// Makes a task of a tab that belongs to none (`u` from the world's untracked list),
+// tied to it. Status: as given, else from what its agent is doing.
+export async function adopt(store, u, { status, title } = {}) {
+  const st = status ?? (u.top === "working" || u.top === "blocked" ? "doing" : u.top === "done" ? "review" : "next");
+  let id = null;
+  await store.update((d) => { id = newTask(d, { title: title ?? untrackedName(u), repo: u.where.key, status: st, tabs: [u.tab] }).id; });
+  if (id) await link(store, id, u.tab, terminals());
+  return id;
 }
 
 export async function send(address, text) {

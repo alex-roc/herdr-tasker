@@ -1,9 +1,20 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 — 2026-11-07
 
 ### New
+- **Plan usage in the status bar**: Claude Code's and Codex's 5-hour and weekly limits, amber from
+  70% and red from 90%, with reset times on hover. Asks your own `claude` CLI (no token read, no
+  prompt sent) and reads Codex's logs. Can be turned off in the settings.
+- **Resume agent**: each task remembers its Claude Code or Codex conversation; after a restart,
+  *Resume agent* (or `r`) continues it in its folder, tied to the task.
+- **Agents in no task**: a *Not in a task* section in Now, *Add to task…* to tie one to an existing
+  task, and a *No task* lane on the board to drag one onto a column.
+- **Linear**: *Import Linear issues* brings your open assigned issues into the Inbox with their
+  priority and due date (personal API key from `LINEAR_API_KEY` or a key file).
 - **Website** with a tutorial and examples: https://alex-roc.github.io/herdr-tasker/
+
+### Fixed
 - Tasks with the same id in `tasks.json` (two entries made in the same second) are told apart.
 
 ## 1.0.0 — 2026-11-07

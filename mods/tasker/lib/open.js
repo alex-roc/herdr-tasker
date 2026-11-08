@@ -10,9 +10,10 @@ const SIZES = {
   issues: { kind: "dialog", width: 540, height: 460 },
   archive: { kind: "dialog", width: 460, height: 230 },
   "confirm-delete": { kind: "dialog", width: 420, height: 190 },
-  settings: { kind: "dialog", width: 460, height: 440 },
-  menu: { kind: "popup", width: 250, height: 290 },
-  repo: { kind: "popup", width: 250, height: 340 },
+  settings: { kind: "dialog", width: 480, height: 540 },
+  menu: { kind: "popup", width: 250, height: 320 },
+  loose: { kind: "popup", width: 240, height: 150 },
+  repo: { kind: "popup", width: 250, height: 370 },
 };
 
 export function openDialog(dialog, props = {}) {

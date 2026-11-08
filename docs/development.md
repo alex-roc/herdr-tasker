@@ -32,6 +32,9 @@ mods/tasker/
   lib/git.js          repository state, read without locks
   lib/actions.js      start an agent, worktrees, archive, gh, links
   lib/cache.js        caches shared by every copy of the mod (globalThis)
+  lib/usage.js        plan usage: Claude (bin/claude-usage.sh) and Codex (its logs)
+  lib/linear.js       Linear's assigned issues, for the import dialog
+  bin/claude-usage.sh asks the claude CLI for usage (get_usage control request), no token read
   lib/open.js         opens dialogs with their sizes
   lib/ui.js           shared pieces: icons, chips, buttons, marks
 test/                 Node tests with fake `herdr` and `gpui-kit` modules

@@ -6,10 +6,10 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { theme, run, shared, setShared, setAgentOrder, home, spaces, terminals, panes, nextCommand } from "herdr";
 import { S } from "./strings.js";
-import { setStatus, newTask } from "./lib/store.js";
-import { nowView, projectTree } from "./lib/world.js";
-import { arrived, link, openHere } from "./lib/actions.js";
-import { RANK, shortModel, kilo, base } from "./lib/util.js";
+import { setStatus } from "./lib/store.js";
+import { nowView, projectTree, untrackedName } from "./lib/world.js";
+import { arrived, link, openHere, adopt } from "./lib/actions.js";
+import { RANK, shortModel, kilo, base, tilde } from "./lib/util.js";
 import { taskMark, prioChip, dueChip, agentMark, sectionHeader, iconButton, programIcon, CHEVRON, icon, agentFor } from "./lib/ui.js";
 import { openDialog } from "./lib/open.js";
 import { projectColor } from "./dialogs.js";
@@ -73,15 +73,17 @@ export const Sidebar = {
       case "edit": return task && this.openTaskForm({ task: task.id });
       case "launch": return task && this.launch(cx, task, false);
       case "worktree": return task?.repo && this.launch(cx, task, true);
+      case "resume": return task && this.resume(cx, task);
       case "jump": return openDialog("jump");
       case "board": return this.openBoard();
       case "settings": return openDialog("settings");
+      case "linear": return openDialog("issues", { source: "linear" });
       case "view": return setShared("tasker.view", (shared("tasker.view") ?? "now") === "now" ? "projects" : "now");
     }
   },
 
   key(e, cx) {
-    const map = { j: "down", down: "down", k: "up", up: "up", enter: "open", space: "done", 1: "p1", 2: "p2", 3: "p3", n: "new", e: "edit", l: "launch", w: "worktree", "/": "jump", tab: "view" };
+    const map = { j: "down", down: "down", k: "up", up: "up", enter: "open", space: "done", 1: "p1", 2: "p2", 3: "p3", n: "new", e: "edit", l: "launch", w: "worktree", r: "resume", "/": "jump", tab: "view" };
     const c = e.modifiers?.control || e.modifiers?.platform || e.modifiers?.alt ? null : map[e.key];
     if (!c) return;
     this.command(c, cx);
@@ -133,6 +135,18 @@ export const Sidebar = {
       }
     }
     for (const a of Object.keys(this.workSince)) if (!live.has(a)) delete this.workSince[a];
+    // The conversation each local agent is in, kept on its task so it can be resumed.
+    for (const x of w.tasks) {
+      for (const e of x.agents) {
+        const info = e.a.address.includes("/") ? null : this.info.get(e.a.address);
+        if (!info?.session || (x.t.sessions ?? []).some((s) => s.id === info.session)) continue;
+        const rec = { app: info.app, id: info.session, cwd: info.cwd ? tilde(info.cwd, home()) : null, at: now };
+        ops.push((d) => {
+          const t = d.tasks.find((y) => y.id === x.t.id);
+          if (t && !(t.sessions ?? []).some((s) => s.id === rec.id)) t.sessions = [...(t.sessions ?? []), rec].slice(-5);
+        });
+      }
+    }
     // Task status follows its agents; never to done by itself.
     const first = this.prevTop == null;
     const prev = this.prevTop ?? {};
@@ -186,21 +200,20 @@ export const Sidebar = {
     const name = untrackedName(u);
     const pic = programIcon(e?.a.program ?? p0?.program, 14, t.muted) ?? icon("square-terminal", 13, t.dim);
     const pane = e?.a.pane ?? p0?.pane;
+    const info = e ? this.info.get(e.a.address) : null;
+    const meta = e ? [shortModel(info?.model), info?.effort, agentFor(u.top ?? e.status, this.sinceOf(e))].filter(Boolean).join(" · ") : "";
     return h_flex().id(`u-${u.tab}`).pl(8 + depth * 14).pr(6).h(26).flex_none().gap(7).rounded(8).items_center()
       .cursor_pointer().hover((s) => s.bg(t.hover))
+      .when(Boolean(meta), (el) => el.tooltip(meta))
       .on_click(() => pane && run("pane.focus", { pane }))
+      .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openDialog("loose", { tab: u.tab }); })
       .child(h_flex().w(16).justify_center().child(agentMark(t, u.top) ?? pic))
       .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(name))
       .child(div().id(`track-${u.tab}`).px(6).h(18).rounded(4).flex().items_center().text_size(10.5).text_color(t.dim)
         .border_1().border_color(t.input).hover((s) => s.text_color(t.foreground).bg(t.hover)).tooltip(S.makeTaskHint)
         .on_click((_e, cx) => {
           cx.stop_propagation();
-          cx.spawn(async () => {
-            let id;
-            await this.store.update((d) => { id = newTask(d, { title: name, repo: u.where.key, status: "doing", tabs: [u.tab] }).id; });
-            if (id) await link(this.store, id, u.tab, terminals());
-            if (id) setShared("tasker.selected", id);
-          });
+          cx.spawn(async () => { const id = await adopt(this.store, u); if (id) setShared("tasker.selected", id); });
         })
         .child(S.makeTask));
   },
@@ -226,6 +239,7 @@ export const Sidebar = {
     section("next", S.nextUp, v.next, t.foreground, { max: 7 });
     section("stalled", S.stalled, v.stalled, t.ansi3);
     section("inbox", S.inbox, v.inbox, t.dim, { max: 5 });
+    section("loose", S.notInTask, [], t.dim, { untracked: v.untrackedIdle });
     this.order = order;
     if (!rows.length) rows.push(div().px(12).pt(12).text_size(12).text_color(t.dim).child(S.emptyNow));
     return rows;
@@ -319,21 +333,4 @@ export const Sidebar = {
 // Key commands bound to this mod in keys.json ("tasker.jump"…), and "focus" from pane.go.
 async function nextCommandSafe() {
   try { return await nextCommand(); } catch { return null; }
-}
-
-// A tab outside any task, by what people recognise: its name, the agent's title,
-// else the program and the folder it's in (never a bare address like "t4").
-export function untrackedName(u) {
-  if (u.where.tab.named && u.where.tab.name) return u.where.tab.name;
-  const e = u.agents[0];
-  const p0 = u.panes[0];
-  // A shell's title is often just its address ("t4", "vps/t1q"): not a name.
-  const addresses = new Set([e?.a.address, p0?.terminal].filter(Boolean).flatMap((a) => [a, a.split("/").pop()]));
-  const isAddress = (x) => !x || addresses.has(x);
-  const title = [e?.term?.title, e?.a.title, p0?.title].find((x) => !isAddress(x));
-  if (title) return title;
-  const prog = e?.a.program ?? p0?.program;
-  const folder = base(p0?.cwd ?? e?.term?.cwd ?? "");
-  const who = prog && prog.key !== "program" ? prog.name : S.terminal;
-  return folder ? `${who} · ${folder}` : who;
 }

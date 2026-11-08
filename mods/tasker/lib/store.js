@@ -11,7 +11,7 @@ import { S } from "../strings.js";
 export const DIR = () => `${appHome()}/data/tasker`;
 export const FILE = () => `${DIR()}/tasks.json`;
 
-export const DEFAULTS = { wip: 3, stale_days: 3, agent: "claude" };
+export const DEFAULTS = { wip: 3, stale_days: 3, agent: "claude", usage: true };
 const EMPTY = () => ({ version: 1, settings: { ...DEFAULTS }, projects: [], tasks: [] });
 
 const str = (v) => (typeof v === "string" ? v : v == null ? "" : String(v));
@@ -48,6 +48,9 @@ export function cleanTask(t) {
     done_at: t.done_at == null ? null : num(t.done_at, null),
     agent_ms: num(t.agent_ms, 0),
     history: list(t.history).filter((h) => h && STATUSES.includes(h.s)).map((h) => ({ s: h.s, at: num(h.at, now) })),
+    // Agent conversations it had, newest last, to resume after a restart.
+    sessions: list(t.sessions).filter((x) => x && ["claude", "codex"].includes(x.app) && typeof x.id === "string" && /^[\w-]+$/.test(x.id))
+      .map((x) => ({ app: x.app, id: x.id, cwd: strOrNull(x.cwd), at: num(x.at, now) })).slice(-5),
   };
 }
 
@@ -76,6 +79,7 @@ export function parse(text) {
   settings.wip = Math.max(1, Math.round(num(settings.wip, DEFAULTS.wip)));
   settings.stale_days = Math.max(1, Math.round(num(settings.stale_days, DEFAULTS.stale_days)));
   settings.agent = str(settings.agent) || DEFAULTS.agent;
+  settings.usage = settings.usage !== false;
   const obj = (x) => x && typeof x === "object" && !Array.isArray(x);
   return {
     ...d,

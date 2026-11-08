@@ -4,10 +4,12 @@
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui-base";
-import { props, closeOverlay, theme, home, spaces, panes, setShared, run, notify, knownAgents } from "herdr";
+import { props, closeOverlay, theme, home, spaces, panes, setShared, run, notify, knownAgents, terminals } from "herdr";
+import { untrackedName } from "./lib/world.js";
 import { S } from "./strings.js";
 import { newTask, newProject, setStatus } from "./lib/store.js";
-import { STATUSES, tilde, untilde, base, byUrgency, OPEN, parseDue, dueLabel } from "./lib/util.js";
+import { STATUSES, tilde, untilde, base, byUrgency, OPEN, parseDue, dueLabel, issueLabel } from "./lib/util.js";
+import { linearKey, linearIssues } from "./lib/linear.js";
 import { place, repoState } from "./lib/git.js";
 import { STATUS_ICON, button, chip, statusIcon, statusColor, prioColor, prioChip, icon } from "./lib/ui.js";
 import { openDialog } from "./lib/open.js";
@@ -86,6 +88,7 @@ export const Dialogs = {
       jump: () => this.jump(t, cx),
       issues: () => this.issuesList(t, cx),
       archive: () => this.archiveConfirm(t, p),
+      loose: () => this.looseMenu(t, p, cx),
       "confirm-delete": () => this.deleteConfirm(t, p),
       settings: () => this.settingsForm(t, cx),
     }[p.dialog]?.() ?? div();
@@ -271,6 +274,7 @@ export const Dialogs = {
     return v_flex().p(5).text_size(12.5)
       .child(item("edit", "pencil", `${S.editTask}…`, () => { close(); openDialog("task", { task: task.id }); }, "e"))
       .child(item("launch", "play", S.start, (_e, cx) => { close(); this.launch(cx, task, false); }, "l"))
+      .when(Boolean(task.sessions?.length), (el) => el.child(item("resume", "rotate-ccw", S.resume, (_e, cx) => { close(); this.resume(cx, task); }, "r")))
       .when(Boolean(task.repo), (el) => el.child(item("launch-wt", "git-fork", S.startWorktree, (_e, cx) => { close(); this.launch(cx, task, true); }, "w")))
       .child(sep())
       .child(h_flex().px(8).py(4).gap(4).flex_wrap().children(STATUSES.map((s) => div().id(`s-${s}`).px(6).h(22).rounded(5).flex().items_center().cursor_pointer()
@@ -316,6 +320,7 @@ export const Dialogs = {
       .child(sep())
       .child(item("r-task", "plus", `${S.newTaskTitle}…`, () => { close(); openDialog("task", { repo: p.repo, project: p.project ?? owner?.id ?? null }); }))
       .child(item("r-issues", "circle-dot", `${S.importIssues}…`, () => { close(); openDialog("issues", { repo: p.repo, project: owner?.id ?? null }); }))
+      .child(item("r-linear", "list-plus", `${S.importLinear}…`, () => { close(); openDialog("issues", { source: "linear", repo: p.repo, project: owner?.id ?? null }); }))
       .child(sep())
       .child(div().px(8).pt(2).pb(4).text_size(11).text_color(t.dim).child(S.moveToProject))
       .child(h_flex().px(8).pb(4).gap(4).flex_wrap()
@@ -324,6 +329,24 @@ export const Dialogs = {
         .children(this.store.data.projects.map((x) => div().id(`r-p-${x.id}`).px(7).h(22).rounded(5).flex().items_center().gap(5).cursor_pointer().text_size(11.5)
           .bg(owner?.id === x.id ? t.selected : t.popover).hover((y) => y.bg(t.hover)).on_click(assign(x.id))
           .child(div().size(7).rounded(2).bg(projectColor(x))).child(x.name))));
+  },
+
+  // ── Menu of a tab in no task ───────────────────────────────────────────
+  looseMenu(t, p, cx) {
+    this.look(cx);
+    const u = this.world.untracked.find((x) => x.tab === p.tab);
+    if (!u) return div().p(10).text_color(t.dim).child(S.loading);
+    const pane = u.agents[0]?.a.pane ?? u.panes[0]?.pane;
+    const item = (id, iconName, label, onClick) => h_flex().id(id).h(28).px(8).gap(8).rounded(6).items_center().cursor_pointer()
+      .hover((s) => s.bg(t.hover)).on_click(onClick).child(icon(iconName, 13, t.muted)).child(div().flex_1().truncate().child(label));
+    return v_flex().p(5).text_size(12.5)
+      .child(div().px(8).pt(4).pb(6).text_size(11).text_color(t.dim).truncate().child(untrackedName(u)))
+      .child(item("l-make", "plus", S.makeTask, (_e, cx) => {
+        close();
+        cx.spawn(async () => { const id = await act.adopt(this.store, u); if (id) { setShared("tasker.selected", id); run("layout.show", { id: "tasker-detail" }); } });
+      }))
+      .child(item("l-add", "list-plus", S.addToTask, () => { close(); openDialog("jump", { attach: u.tab }); }))
+      .when(Boolean(pane), (el) => el.child(item("l-go", "arrow-right", S.focusAgent, () => { close(); run("pane.focus", { pane }); })));
   },
 
   // ── Archive and delete ─────────────────────────────────────────────────
@@ -394,6 +417,10 @@ export const Dialogs = {
       .child(this.title(t, S.settingsTitle))
       .child(setting(S.wipLimit, S.wipLimitHint, stepper("wip", s.wip, 1, 20, String(s.wip), "wip")))
       .child(setting(S.staleDays, S.staleDaysHint, stepper("stale", s.stale_days, 1, 60, S.days(s.stale_days), "stale_days")))
+      .child(setting(S.showUsage, S.showUsageHint, h_flex().gap(4).children([[true, S.on], [false, S.off]].map(([v, label]) =>
+        h_flex().id(`usage-${v}`).h(26).px(10).rounded(6).items_center().text_size(11.5).cursor_pointer()
+          .border_1().border_color(s.usage === v ? t.accent : t.input).bg(s.usage === v ? t.accent + "26" : t.background)
+          .hover((x) => x.bg(t.hover)).on_click(set({ usage: v })).child(label)))))
       .child(setting(S.defaultAgent, S.defaultAgentHint, this.agentList == null ? div().text_color(t.dim).child(S.loading)
         : h_flex().gap(4).flex_wrap().children([...agents, ...(known ? [] : [{ key: s.agent, name: s.agent, installed: false }])].map((a) => {
           const on = a.key === s.agent;
@@ -411,22 +438,26 @@ export const Dialogs = {
     this.at = 0;
     this.q = InputState.new({ placeholder: S.searchTasks.replace(" (/)", "") });
     this.q.on("change", (_e, cx) => { this.query = this.q.value(); this.at = 0; cx.notify(); });
-    this.q.on("submit", () => this.pickJump());
+    this.q.on("submit", (_e, cx) => this.pickJump(undefined, cx));
     this.q.focus();
   },
 
   jumpList() {
     const words = this.query.toLowerCase().split(/\s+/).filter(Boolean);
     const projects = new Map(this.store.data.projects.map((p) => [p.id, p.name]));
-    return this.store.data.tasks.filter((x) => !x.deleted && !x.archived)
-      .filter((x) => words.every((w) => `${x.title} ${x.repo ?? ""} ${x.next_step ?? ""} ${projects.get(x.project) ?? ""} ${x.issue ? `#${x.issue.number}` : ""}`.toLowerCase().includes(w)))
+    const attach = Boolean(props()?.attach);
+    return this.store.data.tasks.filter((x) => !x.deleted && !x.archived && (!attach || OPEN.has(x.status)))
+      .filter((x) => words.every((w) => `${x.title} ${x.repo ?? ""} ${x.next_step ?? ""} ${projects.get(x.project) ?? ""} ${issueLabel(x.issue)}`.toLowerCase().includes(w)))
       .sort((a, b) => (OPEN.has(a.status) ? 0 : 1) - (OPEN.has(b.status) ? 0 : 1) || byUrgency(a, b)).slice(0, 12);
   },
 
-  pickJump(id) {
+  pickJump(id, cx) {
     const list = this.jumpList();
     const task = id ? list.find((x) => x.id === id) : list[this.at];
     if (!task) return;
+    // Opened to put a loose tab in a task: tie it, then show the task.
+    const tab = props()?.attach;
+    if (tab && cx) cx.spawn(async () => act.link(this.store, task.id, tab, terminals()));
     setShared("tasker.selected", task.id);
     run("layout.show", { id: "tasker-detail" });
     close();
@@ -439,11 +470,12 @@ export const Dialogs = {
         if (e.key === "down") { this.at = Math.min(this.at + 1, list.length - 1); cx.notify(); cx.stop_propagation(); }
         if (e.key === "up") { this.at = Math.max(this.at - 1, 0); cx.notify(); cx.stop_propagation(); }
       })
+      .when(Boolean(props()?.attach), (el) => el.child(div().px(2).pb(2).text_size(12).text_color(t.muted).child(S.addToTaskTitle)))
       .child(Input.new(this.q).h(34).px(10).rounded(8).border_1().border_color(t.accent).bg(t.background).text_size(13))
       .child(v_flex().flex_1().min_h(0).overflow_y_scrollbar().children(list.map((x, i) =>
         h_flex().id(`j-${x.id}`).h(30).px(8).gap(8).rounded(6).items_center().cursor_pointer()
           .bg(i === this.at ? t.selected : t.popover).hover((s) => s.bg(t.hover))
-          .on_click(() => this.pickJump(x.id))
+          .on_click((_e, cx) => this.pickJump(x.id, cx))
           .child(statusIcon(t, x.status, 13))
           .child(div().flex_1().truncate().child(x.title))
           .when(Boolean(x.repo), (el) => el.child(div().text_size(11).text_color(t.dim).child(base(x.repo))))
@@ -451,45 +483,61 @@ export const Dialogs = {
         .when(!list.length, (el) => el.child(div().p(8).text_color(t.dim).child(this.query ? S.noMatch(this.query) : S.noTasks))));
   },
 
-  // ── Import GitHub issues ───────────────────────────────────────────────
+  // ── Import issues: GitHub (gh) or Linear ───────────────────────────────
   initIssues(cx, p) {
     this.issues = null;
+    this.issuesError = null;
     this.picked = new Set();
     this.handle.focus();
     cx.spawn(async (cx) => {
-      try { this.issues = await act.issues(untilde(p.repo, home())); } catch (e) { this.issuesError = String(e?.message ?? e); }
+      try {
+        if (p.source === "linear") {
+          const key = await linearKey();
+          if (!key) this.issuesError = S.linearNoKey;
+          else this.issues = await linearIssues(key);
+        } else {
+          this.issues = (await act.issues(untilde(p.repo, home()))).map((i) => ({ ...i, source: "github" }));
+        }
+      } catch (e) { this.issuesError = String(e?.message ?? e); }
       cx.notify();
     });
   },
 
   issuesList(t, cx) {
     const p = props();
+    const linear = p.source === "linear";
     const known = new Set(this.store.data.tasks.map((x) => x.issue?.url).filter(Boolean));
     const list = (this.issues ?? []).filter((i) => !known.has(i.url));
     return v_flex().p(18).gap(10).size_full().min_h(0)
-      .child(this.title(t, S.issuesTitle(base(p.repo ?? ""))))
+      .child(this.title(t, linear ? S.linearTitle(p.repo ? base(p.repo) : null) : S.issuesTitle(base(p.repo ?? ""))))
+      .when(linear && !this.issuesError, (el) => el.child(div().text_size(11.5).text_color(t.dim).child(S.linearHint)))
       .child(v_flex().flex_1().min_h(0).overflow_y_scrollbar().gap(2).children(
-        this.issuesError ? [div().text_color(t.blocked).child(this.issuesError)]
+        this.issuesError ? [div().text_color(this.issuesError === S.linearNoKey ? t.muted : t.blocked).child(this.issuesError)]
           : !this.issues ? [div().text_color(t.dim).child(S.loading)]
           : !list.length ? [div().text_color(t.dim).child(S.noIssues)]
           : list.map((i) => {
-            const on = this.picked.has(i.number);
+            const on = this.picked.has(i.url);
             return h_flex().id(`i-${i.number}`).min_h(28).px(6).gap(8).rounded(6).items_center().cursor_pointer().hover((s) => s.bg(t.hover))
-              .on_click((_e, cx) => { on ? this.picked.delete(i.number) : this.picked.add(i.number); cx.notify(); })
+              .on_click((_e, cx) => { on ? this.picked.delete(i.url) : this.picked.add(i.url); cx.notify(); })
               .child(icon(on ? "circle-check" : "circle", 14, on ? t.accent : t.dim))
-              .child(div().w(40).text_color(t.dim).child(`#${i.number}`))
+              .child(div().w(linear ? 64 : 40).flex_none().truncate().text_color(t.dim).child(issueLabel(i)))
               .child(div().flex_1().truncate().child(String(i.title ?? "")))
+              .when(Boolean(i.due), (el) => el.child(chip(t, i.due.slice(5), t.dim)))
               .children((i.labels ?? []).slice(0, 2).map((l) => chip(t, String(l.name ?? ""), t.dim)));
           })))
       .child(h_flex().gap(8).justify_end()
         .child(button(t, "cancel", S.cancel, close))
         .child(button(t, "import", S.importN(this.picked.size), (_e, cx) => {
-          const chosen = list.filter((i) => this.picked.has(i.number));
+          const chosen = list.filter((i) => this.picked.has(i.url));
           if (!chosen.length || this.saving) return;
           this.saving = true;
           cx.spawn(async () => {
             await this.store.update((d) => {
-              for (const i of chosen) newTask(d, { title: i.title, repo: p.repo, project: p.project ?? null, status: "inbox", issue: { number: i.number, url: i.url, body: (i.body ?? "").slice(0, 4000) } });
+              for (const i of chosen) {
+                newTask(d, { title: i.title, repo: p.repo ?? null, project: p.project ?? null, status: "inbox",
+                  priority: i.priority ?? 2, due: i.due ?? null,
+                  issue: { source: i.source, number: i.number, url: i.url, body: (i.body ?? "").slice(0, 4000) } });
+              }
             });
             close();
           });

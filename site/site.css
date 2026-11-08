@@ -72,7 +72,7 @@ pre .c { color: var(--muted); }
 .hero h1 {
   margin: 0; color: var(--bright);
   font-size: clamp(40px, 5.6vw, 66px); line-height: 1.02; letter-spacing: -0.035em; font-weight: 600;
-  max-width: 13ch;
+  max-width: 15ch;
 }
 .hero .lede { margin: 24px 0 0; font-size: 19px; color: var(--muted); max-width: 46ch; }
 .hero .lede strong { color: var(--text); font-weight: 500; }
@@ -170,6 +170,8 @@ pre .c { color: var(--muted); }
 .view.wide { grid-column: 1 / -1; }
 .view.split { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 40px; align-items: start; }
 .view.split h3 { margin-top: 0; }
+.view.split h3 ~ h3 { margin-top: 30px; }
+.view .bar { max-width: min(100%, 340px); margin: 10px 0 12px; }
 .view .points { margin: 16px 0 0; padding: 0; list-style: none; color: var(--text); }
 .view .points li { padding: 9px 0; border-top: 1px solid var(--line); display: grid; grid-template-columns: 12px 1fr; gap: 12px; align-items: baseline; }
 .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }

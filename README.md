@@ -1,7 +1,8 @@
 # tasker
 
-**A task manager for work done with coding agents, as a layout for the [Herdr app](https://herdr.dev).**
-Projects → repositories → tasks → the agents working on them, with what needs you first.
+**You plan. Your agents move the task. You close it.**
+A light, local task manager for work done with coding agents, as a layout for the [Herdr app](https://herdr.dev):
+projects → repositories → tasks → the agents working on them, with what needs you first.
 
 **[Website, tutorial and examples →](https://alex-roc.github.io/herdr-tasker/)**
 
@@ -11,6 +12,15 @@ Herdr already shows every terminal and agent you run. tasker adds the layer abov
 these agents for?* Each tab can belong to a task; a task knows its repository, priority, due date and
 next step; and the list tells you what to do next: answer the agent that's waiting, review what one
 finished, or start the next task.
+
+What makes it different:
+
+- **Tasks follow their agents, and you have the last word.** A task moves to Doing when its agent
+  starts working and to Review when it stops; only you mark it Done. No pipeline to configure.
+- **Real planning, not just a list of agents.** Projects and repositories, priorities, due dates in
+  plain words, a limit on what's in progress, and stalled work called out.
+- **Light and local.** One mod and one JSON file you (or an agent) can edit. No service, daemon,
+  account or extra CLI. GitHub and Linear are optional imports.
 
 - [What you get](#what-you-get)
 - [Install](#install)
@@ -35,17 +45,19 @@ finished, or start the next task.
 | **Stalled** | Doing or Waiting tasks that haven't moved in a few days |
 | **Inbox** | Ideas and imported issues, not yet planned |
 
-Agents in tabs that belong to no task show up too when they need you, finished or are working, with a
-**Make task** button.
+Agents in tabs that belong to no task show up too: in the section that fits when they need you,
+finished or are working, and under **Not in a task** otherwise. **Make task** turns one into a task;
+its menu also offers **Add to task…** to tie it to one you already have.
 
 **Projects**: an outline of projects → repositories → tasks. Each repository shows its branch,
 commits not pushed (↑) and uncommitted changes (•), and the terminals open there that belong to no
 task. From a repository: `›_` opens a terminal there, `+` a task, and `⋯` (or right-click) starts any
-installed agent there, imports GitHub issues, or moves it to another project.
+installed agent there, imports GitHub or Linear issues, or moves it to another project.
 
 **Board**: a kanban tab (`cmd-shift-b`, or the board button) with Inbox, Next, Doing (with your
 limit), Waiting, Review and Done (last 7 days). Drag a card to change its status, click to open it,
-right-click for its menu, filter by project.
+right-click for its menu, filter by project. Agents in no task wait in a **No task** lane on the left:
+drag one onto a column to make it a task there.
 
 ![The board](docs/board.png)
 
@@ -62,6 +74,13 @@ step, notes, issue) as its first message. **Start in a worktree** first creates 
 Tasks follow their agents: when an agent starts working the task moves to **Doing**; when it stops,
 to **Review**. Only you mark a task **Done**. **Archive** puts its tabs away and can remove its
 worktree (a branch with unmerged commits is kept).
+
+**Resume agent**: tasker remembers the Claude Code or Codex conversation each task's agent was in.
+After a restart, or once you closed its tab, *Resume agent* (or `r`) runs `claude --resume <id>` or
+`codex resume <id>` in its folder, tied to the task again.
+
+**Plan usage** in the status bar: `Claude 28% wk 34%`, `Codex 8% wk 12%`, amber from 70% and red
+from 90%; hover for when each limit resets, click to look again.
 
 Inspired by the task → worktree → review → ship flow of [Orca](https://github.com/stablyai/orca).
 
@@ -97,17 +116,24 @@ Your other layouts are untouched; switch back the same way.
 
 1. **Add a project.** In Projects, the folder button makes one; tick the repositories that belong
    to it (any repository open in Herdr is offered). Or right-click a repository → Project.
-2. **Add tasks.** `n`, the `+` button, `+` on a repository, or *Import GitHub issues* from a
-   repository's menu. A due date takes `today`, `tomorrow`, `fri`, `+3d`, `2w`, `12-24` or
-   `2026-12-24`.
+2. **Add tasks.** `n`, the `+` button, `+` on a repository, or *Import GitHub issues* / *Import
+   Linear issues* from a repository's menu. A due date takes `today`, `tomorrow`, `fri`, `+3d`, `2w`,
+   `12-24` or `2026-12-24`.
 3. **Start an agent.** `l` (or ▶ on hover, or *Start agent* in the detail) starts your agent with the
    task as its first message; `w` does it in a new worktree. The new tab is tied to the task.
-4. **Already working?** A tab with an agent that belongs to no task has **Make task**.
+4. **Already working?** An agent in no task has **Make task**, **Add to task…** in its menu, and a
+   card in the board's **No task** lane to drag onto a column.
 5. **Work from Now.** Answer what needs you, review what's done (*Show changes*, the PR and its
    checks are in the detail), then press `space` to mark it done.
 
 Settings (the gear in the status bar): how many tasks can be in Doing before the status bar warns
-you, after how many days a task counts as stalled, and which agent *Start agent* runs.
+you, after how many days a task counts as stalled, which agent *Start agent* runs, and whether the
+status bar shows plan usage.
+
+**Linear** (optional): create a personal API key (Linear → Settings → Security & access → Personal
+API keys) and either export it as `LINEAR_API_KEY` in your login shell profile or save it alone in
+`~/.config/herdr-app/data/tasker/linear-key`. *Import Linear issues* lists your open issues assigned
+to you; their priority and due date come along. tasker only reads from Linear.
 
 ## Keys
 
@@ -123,11 +149,11 @@ With `./install.sh --keys` (only while the tasker layout is shown):
 | `cmd-shift-b` | Open the board |
 
 In the list: `j`/`k` or arrows move, `enter` goes to the task's agent, `space` marks done (again: back
-to Next), `1` `2` `3` set priority, `n` new, `e` edit, `l` start agent, `w` start in a worktree, `/`
-find, `tab` switches view. Right-click a task, a repository or a project for its menu.
+to Next), `1` `2` `3` set priority, `n` new, `e` edit, `l` start agent, `w` start in a worktree, `r` resume
+its agent, `/` find, `tab` switches view. Right-click a task, a repository or a project for its menu.
 
 From a script or an agent: `herdr-app do tasker.new`, `tasker.board`, `tasker.view`, `tasker.jump`,
-`tasker.settings`, and `tasker.select:<task id>` (shows that task).
+`tasker.settings`, `tasker.linear` (import Linear issues), and `tasker.select:<task id>` (shows that task).
 
 ## Your data
 
@@ -137,16 +163,17 @@ file it can't read (it shows what's wrong instead). It never goes in this reposi
 
 ```jsonc
 {
-  "settings": { "wip": 3, "stale_days": 3, "agent": "claude" },   // agent: a key from Herdr's agent menu
+  "settings": { "wip": 3, "stale_days": 3, "agent": "claude", "usage": true },   // agent: a key from Herdr's agent menu
   "projects": [{ "id": "p1", "name": "Acme", "color": "ansi4", "repos": ["~/dev/acme"] }],
   "tasks": [{
     "id": "t1", "title": "Add OAuth login", "project": "p1", "repo": "~/dev/acme",
     "status": "next",            // inbox | next | doing | waiting | review | done | dropped
     "priority": 1,               // 1 high, 2 normal, 3 low
     "due": "2026-11-20", "estimate": "2h", "next_step": "Wire the callback", "notes": "",
-    "issue": { "number": 12, "url": "https://github.com/…", "body": "…" },
+    "issue": { "source": "github", "number": 12, "url": "https://github.com/…", "body": "…" },  // Linear: "number": "ENG-12"
     "worktree": null, "branch": null,
-    "tabs": ["<herdr tab id>"], "agent_ms": 0, "history": [{ "s": "next", "at": 1794000000000 }]
+    "tabs": ["<herdr tab id>"], "agent_ms": 0, "history": [{ "s": "next", "at": 1794000000000 }],
+    "sessions": [{ "app": "claude", "id": "<session id>", "cwd": "~/dev/acme", "at": 1794000000000 }]
   }]
 }
 ```
@@ -166,9 +193,14 @@ The mod runs these programs, only on your machine (or the machine a space lives 
 - `tail`, `grep` and `lsof`: to read the model, effort and context of Claude Code
   (`~/.claude/sessions`, `~/.claude/projects`) and Codex (`~/.codex/sessions`) from their own logs.
 - `open` (`xdg-open` on Linux) for issue and pull request links.
+- Your `claude` CLI, for a moment every 5 minutes while the window is in front, to ask for plan
+  usage (`mods/tasker/bin/claude-usage.sh`): the CLI signs in by itself, tasker reads no token or
+  credential file, and no prompt is sent. Codex's limits come from its own logs. Turn it off in the
+  settings.
 
-It makes no network requests of its own and sends nothing anywhere. While the window is in the
-background, or the detail panel is closed, it looks less often or not at all.
+Its only request of its own goes to `api.linear.app`, and only when you open *Import Linear issues*.
+Nothing else is sent anywhere. While the window is in the background, or the detail panel is closed,
+it looks less often or not at all.
 
 ## Troubleshooting
 
@@ -178,6 +210,10 @@ background, or the detail panel is closed, it looks less often or not at all.
   them. They appear after the agent's first reply.
 - **A launched agent isn't tied to its task.** tasker looks for the new tab for 30 seconds. Use
   **Make task** on the tab, or add its tab id to the task's `tabs`.
+- **Claude's usage shows `!`.** Hover it for the reason. tasker asks your `claude` CLI (`claude -p`
+  with a usage request); an old CLI, or an account without plan limits, has nothing to report.
+- **Resume agent doesn't appear.** tasker learns a task's conversation while its agent runs (Claude
+  Code and Codex only); a task whose agent never ran under tasker has nothing to resume.
 - **Changes in a mod file don't show up.** Run `./install.sh` again: Herdr doesn't reload a mod
   folder that is a symlink. `herdr-app status` lists any error.
 - **Stuck in a broken layout.** `ctrl-alt-shift-escape` always goes back to Herdr's default layout.

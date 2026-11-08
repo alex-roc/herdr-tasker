@@ -11,9 +11,11 @@ import { build, nowView, projectTree } from "../mods/tasker/lib/world.js";
 import { arrived, launch } from "../mods/tasker/lib/actions.js";
 import { AgentInfo } from "../mods/tasker/lib/agentinfo.js";
 import { RepoCache } from "../mods/tasker/lib/git.js";
-import { untrackedName } from "../mods/tasker/sidebar.js";
+import { parseClaude, parseCodex, Usage } from "../mods/tasker/lib/usage.js";
+import { isElement, walk, text } from "gpui-kit";
+import { untrackedName } from "../mods/tasker/lib/world.js";
 import Tasker from "../mods/tasker/main.js";
-import { world, cx, settle, until, FILE, iso, task } from "./fixture.mjs";
+import { world, cx, settle, until, FILE, iso, task, CLAUDE_USAGE } from "./fixture.mjs";
 
 const at = new Date(2026, 10, 7, 15, 0); // Saturday 7 Nov 2026
 
@@ -230,11 +232,12 @@ test("agent info: Claude Code model, effort and context; Codex from its rollout"
   await settle();
   assert.deepEqual(
     { ...info.get("t1"), session: undefined },
-    { app: "claude", model: "claude-opus-5-5", effort: "high", ctx: 12 + 200000 + 3000 + 800, ctxMax: null, session: undefined },
+    { app: "claude", model: "claude-opus-5-5", effort: "high", ctx: 12 + 200000 + 3000 + 800, ctxMax: null, session: undefined, cwd: "/home/me/dev/app" },
   );
   const grep = H.execLog.find(([c, a]) => c === "sh" && a.join(" ").includes("grep"));
   assert.equal(grep[1].at(-1), "/home/me/.claude/projects/-home-me-dev-app/abc.jsonl");
-  assert.deepEqual(info.get("vps/t7"), { app: "codex", model: "gpt-5.5-codex", effort: "medium", ctx: 51000, ctxMax: 272000 });
+  assert.deepEqual(info.get("vps/t7"), { app: "codex", model: "gpt-5.5-codex", effort: "medium", ctx: 51000, ctxMax: 272000,
+    session: "0aa1b2c3-1111-2222-3333-444455556666", cwd: "/srv/api" });
   // Shared: another copy sees it without looking again.
   const n = H.execLog.length;
   const other = new AgentInfo();
@@ -276,4 +279,170 @@ test("detail: nothing is looked up while the panel is hidden", async () => {
   await settle();
   assert.ok(H.hcLog.some((a) => a[0] === "read"));
   assert.ok(H.execLog.some(([c]) => c === "gh"));
+});
+
+test("plan usage: Claude's get_usage reply and Codex's logged limits", () => {
+  const now = Date.now();
+  const c = parseClaude(CLAUDE_USAGE, now);
+  assert.equal(c.five.pct, 28);
+  assert.equal(c.week.pct, 74);
+  assert.ok(c.five.resets > now);
+  // Only the newer "limits" list: still read.
+  const alt = parseClaude(JSON.stringify({ response: { response: { rate_limits: { limits: [{ kind: "session", percent: 5 }, { kind: "weekly_all", percent: 9 }] } } } }), now);
+  assert.deepEqual([alt.five.pct, alt.week.pct], [5, 9]);
+  assert.throws(() => parseClaude(JSON.stringify({ response: { response: { rate_limits_available: false } } })));
+  // A reset that passed means the window is empty again.
+  const past = parseClaude(JSON.stringify({ response: { response: { rate_limits: { five_hour: { utilization: 99, resets_at: new Date(now - 1000).toISOString() } } } } }), now);
+  assert.equal(past.five.pct, 0);
+  const line = JSON.stringify({ timestamp: new Date(now).toISOString(), payload: { type: "token_count", rate_limits: { secondary: { used_percent: 12, window_minutes: 10080 }, primary: { used_percent: 8.4, window_minutes: 300 } } } });
+  const x = parseCodex(`junk\n${line}\n{"other":1}`, now);
+  assert.deepEqual([x.five.pct, x.week.pct], [8, 12]);
+  assert.equal(parseCodex("nothing here"), null);
+});
+
+test("status bar: plan usage shown, colored by the fuller limit, and off when asked", async () => {
+  world();
+  H.props = { role: "status" };
+  const v = new Tasker();
+  v.init(H.props, cx());
+  await until(() => v.store.loaded);
+  v.render(cx());
+  await settle();
+  const words = text(v.render(cx()));
+  assert.match(words, /Claude 28% wk 74%/);
+  assert.match(words, /Codex 8% wk 92%/);
+  const t = (await import("herdr")).theme();
+  const codex = walk(v.render(cx())).find((n) => n.id === "st-u-codex");
+  assert.ok(codex.calls.some(([m, a]) => m === "text_color" && a[0] === t.blocked), "92% is red");
+  const n = H.execLog.length;
+  v.render(cx());
+  await settle();
+  assert.equal(H.execLog.length, n, "not asked again within 5 minutes");
+  // Off in the settings: nothing shown, nothing run.
+  const d = JSON.parse(H.files.get(FILE())); d.settings.usage = false; H.files.set(FILE(), JSON.stringify(d));
+  await v.store.load();
+  assert.doesNotMatch(text(v.render(cx())), /Claude/);
+});
+
+async function mountRole(props, setup) {
+  world();
+  setup?.();
+  H.props = props;
+  const v = new Tasker();
+  v.init(props, cx());
+  await until(() => v.store.loaded);
+  await settle();
+  return v;
+}
+
+test("agents in no task: their own Now section, and Make task picks a status from the agent", async () => {
+  const v = await mountRole({ role: "sidebar" }, () => { H.agents.find((a) => a.address === "t4").status = "idle"; });
+  const words = text(v.render(cx()));
+  assert.match(words, /Not in a task/);
+  const w = v.world;
+  const { adopt } = await import("../mods/tasker/lib/actions.js");
+  const u = w.untracked.find((x) => x.tab === "tb4");
+  const id = await adopt(v.store, u);
+  const t = v.store.task(id);
+  assert.equal(t.status, "next", "an idle agent's task is planned, not in progress");
+  assert.deepEqual(t.tabs, ["tb4"]);
+  assert.equal(t.title, "spike");
+  assert.ok(H.hcLog.some((a) => a[0] === "label" && a[2] === `tasker.task=${id}`), "its terminal is labelled");
+});
+
+test("board: dragging a loose agent onto a column makes it a task there", async () => {
+  const v = await mountRole({ role: "board" });
+  const tree = v.render(cx());
+  const card = walk(tree).find((n) => n.id === "loose-tb4");
+  assert.ok(card, "the No task lane lists the loose agent");
+  const c = cx();
+  card.handlers["on_mouse_down:left"]({}, c);
+  walk(v.render(cx())).find((n) => n.id === "col-review").handlers["on_mouse_up:left"]({}, c);
+  await settle();
+  const t = v.store.data.tasks.find((x) => x.tabs.includes("tb4"));
+  assert.equal(t?.status, "review");
+  assert.ok(!walk(v.render(cx())).some((n) => n.id === "loose-tb4"), "and leaves the lane");
+});
+
+test("find a task in attach mode ties the loose tab to the picked task", async () => {
+  const v = await mountRole({ dialog: "jump", overlay: "ov1", attach: "tb3" });
+  v.query = "pick a database";
+  const c = cx();
+  v.pickJump(undefined, c);
+  await settle();
+  assert.ok(v.store.task("blocked1").tabs.includes("tb3"));
+  assert.ok(v.jumpList().every((x) => ["inbox", "next", "doing", "waiting", "review"].includes(x.status)), "only open tasks are offered");
+});
+
+test("sessions are kept on the task, and Resume continues the last one in its folder", async () => {
+  const v = await mountRole({ role: "sidebar" }, () => {
+    H.files.set("/home/me/.claude/sessions/1001.json", JSON.stringify({ sessionId: "sess-1", cwd: "/home/me/dev/app" }));
+  });
+  v.render(cx());
+  await settle();
+  v.render(cx());
+  await settle();
+  const t = v.store.task("doing1");
+  assert.deepEqual(t.sessions.map((x) => [x.app, x.id, x.cwd]), [["claude", "sess-1", "~/dev/app"]]);
+  // Its agent is gone (a restart): Resume.
+  H.agents = H.agents.filter((a) => a.address !== "t1");
+  H.terminals = H.terminals.filter((x) => x.address !== "t1");
+  v.resume(cx(), v.store.task("doing1"));
+  await settle();
+  const [cmd, args] = H.runs.filter(([c]) => c === "tab.new" || c === "space.new").at(-1);
+  assert.deepEqual(args.argv, ["claude", "--resume", "sess-1"]);
+  assert.equal(args.folder, "/home/me/dev/app");
+  assert.equal(args.task, undefined, "no first message: the conversation is already there");
+  assert.equal(cmd, "tab.new");
+});
+
+test("detail offers Resume when the task's agent is gone", async () => {
+  const v = await mountRole({ role: "detail" }, () => {
+    H.shared["tasker.selected"] = "next1";
+    const d = JSON.parse(H.files.get(FILE()));
+    d.tasks.find((x) => x.id === "next1").sessions = [{ app: "codex", id: "0aa1b2c3-1111-2222-3333-444455556666", cwd: "~/dev/web", at: Date.now() - 3600000 }];
+    H.files.set(FILE(), JSON.stringify(d));
+  });
+  const node = walk(v.render(cx())).find((n) => n.id === "d-resume");
+  assert.ok(node);
+  node.handlers.on_click({}, cx());
+  await settle();
+  const args = H.runs.filter(([c]) => c === "tab.new").at(-1)[1];
+  assert.deepEqual(args.argv, ["codex", "resume", "0aa1b2c3-1111-2222-3333-444455556666"]);
+});
+
+test("Linear: no key says how to add one; with a key, assigned issues import with priority and due", async () => {
+  const realFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, opts) => {
+    calls.push([url, opts]);
+    return { ok: true, status: 200, json: async () => ({ data: { viewer: { assignedIssues: { nodes: [
+      { identifier: "ENG-12", title: "Rate limits on login", url: "https://linear.app/o/issue/ENG-12", description: "Too many tries", priority: 1, dueDate: "2026-12-01", state: { name: "Todo" }, team: { key: "ENG" }, labels: { nodes: [{ name: "bug" }] } },
+      { identifier: "ENG-13", title: "Low one", url: "https://linear.app/o/issue/ENG-13", priority: 4, dueDate: null, state: { name: "Backlog" }, labels: { nodes: [] } },
+    ] } } } }) };
+  };
+  try {
+    let v = await mountRole({ dialog: "issues", overlay: "ov1", source: "linear", repo: "~/dev/app" });
+    assert.match(text(v.render(cx())), /personal API key/);
+    assert.equal(calls.length, 0);
+
+    v = await mountRole({ dialog: "issues", overlay: "ov1", source: "linear", repo: "~/dev/app" }, () => {
+      H.files.set(`${H.appHome}/data/tasker/linear-key`, "lin_api_test\n");
+    });
+    await settle();
+    assert.equal(calls[0][1].headers.Authorization, "lin_api_test");
+    assert.match(text(v.render(cx())), /ENG-12/);
+    walk(v.render(cx())).find((n) => n.id === "i-ENG-12").handlers.on_click({}, cx());
+    walk(v.render(cx())).find((n) => n.id === "import").handlers.on_click({}, cx());
+    await settle();
+    const t = v.store.data.tasks.find((x) => x.issue?.number === "ENG-12");
+    assert.equal(t.status, "inbox");
+    assert.equal(t.priority, 1);
+    assert.equal(t.due, "2026-12-01");
+    assert.equal(t.issue.source, "linear");
+    const { S } = await import("../mods/tasker/strings.js");
+    assert.match(S.prompt(t), /^Rate limits on login[\s\S]*Linear issue ENG-12/);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
 });

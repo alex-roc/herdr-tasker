@@ -6,8 +6,10 @@ import { v_flex, h_flex } from "gpui-base";
 import { theme, setShared, run, shared } from "herdr";
 import { S } from "./strings.js";
 import { setStatus } from "./lib/store.js";
-import { RANK, byUrgency, base, shortModel } from "./lib/util.js";
-import { statusIcon, taskMark, prioChip, dueChip, chip, iconButton, icon, agentFor } from "./lib/ui.js";
+import { RANK, byUrgency, base, shortModel, issueLabel } from "./lib/util.js";
+import { statusIcon, taskMark, prioChip, dueChip, chip, iconButton, icon, agentFor, agentMark, programIcon } from "./lib/ui.js";
+import { untrackedName } from "./lib/world.js";
+import { adopt } from "./lib/actions.js";
 import { openDialog } from "./lib/open.js";
 import { projectColor } from "./dialogs.js";
 
@@ -40,6 +42,20 @@ export const Board = {
   },
 
   drop(cx, status) {
+    // A loose agent dropped on a column: it becomes a task there. Released on its own lane: go to it.
+    if (String(this.pressed ?? "").startsWith("tab:")) {
+      const tab = this.pressed.slice(4);
+      const u = this.world.untracked.find((x) => x.tab === tab);
+      this.pressed = null;
+      this.over = null;
+      if (u && status !== "loose") {
+        cx.spawn(async () => { const id = await adopt(this.store, u, { status }); if (id) setShared("tasker.selected", id); });
+      } else if (u) {
+        const pane = u.agents[0]?.a.pane;
+        if (pane) run("pane.focus", { pane });
+      }
+      return cx.notify();
+    }
     const from = this.pressed;
     const task = from && this.store.task(from);
     this.pressed = null;
@@ -83,17 +99,50 @@ export const Board = {
       .child(h_flex().gap(5).items_center().flex_wrap()
         .child(prioChip(t, task.priority))
         .when(Boolean(due), (el) => el.child(due))
-        .when(Boolean(task.issue), (el) => el.child(chip(t, `#${task.issue.number}`, t.dim)))
+        .when(Boolean(task.issue), (el) => el.child(chip(t, issueLabel(task.issue), t.dim)))
         .when(Boolean(task.branch), (el) => el.child(h_flex().gap(3).items_center().text_size(10).text_color(t.dim).child(icon("git-branch", 11)).child(task.branch.replace(/^task\//, ""))))
         .child(div().flex_1())
         .when(Boolean(project) && !this.boardProject, (el) => el.child(div().size(7).rounded(2).bg(projectColor(project))))
         .when(Boolean(task.repo), (el) => el.child(div().text_size(10.5).text_color(t.dim).child(base(task.repo)))));
   },
 
+  // Agents in no task, as cards to drag onto a column.
+  looseCard(t, u) {
+    const e = u.agents[0];
+    const info = e ? this.info.get(e.a.address) : null;
+    const meta = e ? [shortModel(info?.model), info?.effort, agentFor(u.top ?? e.status, this.sinceOf(e))].filter(Boolean).join(" · ") : "";
+    const lifted = this.pressed === `tab:${u.tab}` && this.over && this.over !== "loose";
+    return v_flex().id(`loose-${u.tab}`).p(9).gap(5).flex_none().rounded(9).bg(t.background)
+      .border_1().border_color(u.top === "blocked" ? t.blocked : t.border).when(lifted, (el) => el.opacity(0.45))
+      .cursor_pointer().hover((s) => s.border_color(t.input))
+      .on_mouse_down("left", (_e, cx) => { this.pressed = `tab:${u.tab}`; this.over = "loose"; cx.notify(); })
+      .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openDialog("loose", { tab: u.tab }); })
+      .child(h_flex().gap(7).items_center()
+        .child(h_flex().w(16).justify_center().child(agentMark(t, u.top ?? e?.status) ?? (programIcon(e?.a.program, 14, t.muted) ?? div())))
+        .child(div().flex_1().min_w(0).truncate().text_size(12.5).child(untrackedName(u))))
+      .when(Boolean(meta), (el) => el.child(div().truncate().text_size(11).text_color(t.muted).child(meta)))
+      .child(div().text_size(10.5).text_color(t.dim).child(base(u.where.key ?? "")));
+  },
+
+  looseColumn(t, list) {
+    const over = String(this.pressed ?? "").startsWith("tab:") && this.over === "loose";
+    return v_flex().id("col-loose").flex_1().min_w(160).max_w(240).h_full().min_h(0).rounded(10)
+      .bg(t.canvas).border_1().border_color(over ? t.accent : t.border)
+      .on_mouse_move((_e, cx) => { if (this.pressed && this.over !== "loose") { this.over = "loose"; cx.notify(); } })
+      .on_mouse_up("left", (_e, cx) => this.drop(cx, "loose"))
+      .child(h_flex().px(12).h(38).flex_none().gap(7).items_center()
+        .child(icon("bot", 14, t.dim))
+        .child(div().font_semibold().text_size(12.5).text_color(t.muted).child(S.noTaskLane))
+        .child(div().text_size(11.5).text_color(t.dim).child(String(list.length))))
+      .child(div().px(12).pb(6).text_size(10.5).text_color(t.dim).child(S.noTaskLaneHint))
+      .child(v_flex().id("col-list-loose").flex_1().min_h(0).px(8).pb(8).gap(7).overflow_y_scrollbar()
+        .children(list.map((u) => this.looseCard(t, u))));
+  },
+
   column(t, status, list, wip) {
     const over = this.pressed && this.over === status;
     const full = status === "doing" && list.length > wip;
-    return v_flex().id(`col-${status}`).flex_1().min_w(210).max_w(320).h_full().min_h(0).rounded(10)
+    return v_flex().id(`col-${status}`).flex_1().min_w(170).max_w(320).h_full().min_h(0).rounded(10)
       .bg(over ? t.selected : t.chrome).border_1().border_color(over ? t.accent : t.border)
       .on_mouse_move((_e, cx) => { if (this.pressed && this.over !== status) { this.over = status; cx.notify(); } })
       .on_mouse_up("left", (_e, cx) => this.drop(cx, status))
@@ -114,6 +163,8 @@ export const Board = {
     const t = theme();
     const cols = this.boardColumns(this.world);
     const wip = this.store.data.settings.wip;
+    // Agents in no task (of the shown project, when one is picked).
+    const loose = this.world.untracked.filter((u) => u.agents.length && (!this.boardProject || this.world.projectOfRepo.get(u.where.key) === this.boardProject));
     const pick = (id) => (_e, cx) => {
       this.boardProject = id;
       try { id ? localStorage.setItem("board.project", id) : localStorage.removeItem("board.project"); } catch {}
@@ -133,6 +184,7 @@ export const Board = {
         .child(div().flex_1())
         .child(div().text_size(11).text_color(t.dim).child(S.boardHint)))
       .child(h_flex().id("board-cols").flex_1().min_h(0).px(14).pb(14).gap(10).items_start().overflow_x_scrollbar()
+        .when(loose.length > 0, (el) => el.child(this.looseColumn(t, loose)))
         .children(COLUMNS.map((c) => this.column(t, c, cols[c], wip))));
   },
 };

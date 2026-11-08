@@ -108,9 +108,12 @@ every task by status.
 - Reminders (on by default): a notification for tasks back from Later, and once a day (`reminded`)
   for what's due today or late; one notification for several; clicking it runs `tasker.select:<id>`
   (or `tasker.focus`).
-- A task for the whole project (a project, no repository) and a project's own agents start in its
-  first repository with `--add-dir` for the others (Claude Code and Codex); the first message names
-  every repository of the project. A task in one repository of a bigger project hears of the others.
+- A task for the whole project (a project, no repository) and a project's own terminals and agents
+  run in the project's own space (named after it) in the nearest folder holding all its repositories
+  (a lone repository's parent), with `--add-dir` for any repository outside it (Claude Code and Codex);
+  the first message names every repository of the project. Their terminals are labelled
+  `tasker.project=<id>` and their tabs show at the project's level, above its repositories, never
+  under a repository or No project. Close project closes that space too. A task in one repository of a bigger project hears of the others.
 - Close repo / Close project: one confirmation ("Closes its 2 spaces … and 1 agent"), then
   `space.close {confirmed: true}` for each space open in those repositories.
 - Delete and archive ask first. Delete hides the task (`deleted: true`); archive marks it done,

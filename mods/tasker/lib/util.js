@@ -41,6 +41,21 @@ export function untilde(path, home) {
   return path.startsWith("~") ? home + path.slice(1) : path;
 }
 
+// Where work across several repositories happens: the nearest folder holding them all
+// (~/dev for ~/dev/a and ~/dev/b; a lone repository's parent). Absolute paths in, null if none.
+export function commonDir(paths) {
+  const parts = paths.filter(Boolean).map((p) => p.replace(/\/+$/, "").split("/"));
+  if (!parts.length) return null;
+  let common = parts[0].slice(0, parts.length === 1 ? -1 : undefined);
+  for (const p of parts.slice(1)) {
+    let i = 0;
+    while (i < common.length && i < p.length && common[i] === p[i]) i++;
+    common = common.slice(0, i);
+  }
+  // Nothing in common but "/": no place.
+  return common.join("/") || null;
+}
+
 export const base = (path) => (path ?? "").replace(/\/+$/, "").split("/").pop();
 
 export function today() {

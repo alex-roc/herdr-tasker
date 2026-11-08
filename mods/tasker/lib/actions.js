@@ -1,10 +1,10 @@
 // What tasker does in Herdr and git on a task's behalf.
 
-import { run, exec, hc, knownAgents, home, focused, spaces, panes, window, terminals } from "herdr";
+import { run, exec, hc, knownAgents, home, focused, spaces, panes, window, terminals, shared, setShared } from "herdr";
 import { untrackedName } from "./world.js";
 import { git, place } from "./git.js";
 import { setStatus, newTask } from "./store.js";
-import { untilde, tilde, slug } from "./util.js";
+import { untilde, tilde, slug, commonDir } from "./util.js";
 import { S } from "../strings.js";
 
 // Checkouts go where Herdr's own worktree dialog puts them, so its spaces list nests them.
@@ -49,17 +49,44 @@ export function withDirs(argv, dirs) {
   return [...argv, ...dirs.flatMap((d) => ["--add-dir", d])];
 }
 
-// Where project-wide work runs: its first repository, with the rest added.
+// Where project-wide work runs: the nearest folder holding all its repositories (~/dev),
+// above them as the project is; `others`: repositories outside it, to add (none, usually).
 export function projectPlace(project, h = home()) {
   const repos = (project?.repos ?? []).map((r) => untilde(r, h));
-  return repos.length ? { folder: repos[0], others: repos.slice(1), all: repos } : null;
+  if (!repos.length) return null;
+  const folder = commonDir(repos) ?? repos[0];
+  const inside = (r) => r === folder || r.startsWith(folder + "/");
+  return { folder, others: repos.filter((r) => !inside(r)), all: repos };
 }
 
-// A terminal or an agent (argv) for the whole project.
+// The project's own space: named after it, in its folder. Several projects can share a
+// folder (~/dev), so a space there that isn't named after this one isn't its.
+export function projectSpace(project, folder) {
+  const ps = panes();
+  return spaces().find((s) => !s.machine && s.name === project.name && place(s, ps) === folder) ?? null;
+}
+
+// Opens a tab in the project's space (else makes the space) and remembers it, so the new
+// tab's terminals get labelled tasker.project=<id> and show under the project.
 export function openInProject(project, argv) {
   const at = projectPlace(project);
   if (!at) return;
-  openHere(tilde(at.folder, home()), argv ? withDirs(argv, at.others) : undefined);
+  const sp = spaces();
+  const pending = { project: project.id, name: null, at: Date.now(),
+    beforeSpaces: sp.map((s) => s.id), beforeTabs: sp.flatMap((s) => (s.tabs ?? []).map((t) => t.id)) };
+  const space = projectSpace(project, at.folder);
+  const args = { folder: at.folder, ...(argv ? { argv: withDirs(argv, at.others) } : {}) };
+  if (space) run("tab.new", { space: space.id, ...args });
+  else run("space.new", { name: project.name, ...args });
+  pending.space = space?.id ?? null;
+  setShared("tasker.pending", [...(shared("tasker.pending") ?? []), pending]);
+}
+
+// Labels a tab's terminals as the project's (shown at the project's level).
+export async function labelProject(projectId, tabId, ts) {
+  for (const term of ts.filter((x) => x.labels?.["herdr.tab"] === tabId && !x.address.includes("/"))) {
+    try { await hc(["label", term.address, `tasker.project=${projectId}`]); } catch {}
+  }
 }
 
 // A terminal (or an agent, with argv) in a repo, outside any task: a tab in the
@@ -109,18 +136,21 @@ export async function launch(store, task, { worktree = false, resume = null } = 
     patch.worktree = tilde(wt.path, h);
     patch.branch = wt.branch;
   }
-  if (wide) argv = withDirs(argv, wide.all.filter((d) => d !== folder));
+  // Repositories outside the folder it runs in are added (resumed in one of them: the rest).
+  if (wide) argv = withDirs(argv, wide.all.filter((d) => !(d === folder || d.startsWith(folder + "/"))));
   if (!folder) {
     // No repo: where the person is now.
     const f = focused();
     const s = spaces().find((x) => x.id === f?.space);
     folder = f?.cwd ?? (s ? place(s, panes()) : h);
   }
-  const space = spaceAt(folder);
+  // A task of the whole project runs in the project's own space, above its repositories.
+  const own = wide && folder === wide.folder;
+  const space = own ? projectSpace(project, folder) : spaceAt(folder);
   const name = task.title.slice(0, 40);
   const first = prompt ? { task: prompt } : {};
   if (space) run("tab.new", { space: space.id, name, folder, argv, ...first });
-  else run("space.new", { folder, tab: name, argv, ...first });
+  else run("space.new", { folder, tab: name, argv, ...first, ...(own ? { name: project.name } : {}) });
   await store.update((d) => {
     const t = d.tasks.find((x) => x.id === task.id);
     if (!t) return false;

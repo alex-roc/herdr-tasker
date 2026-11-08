@@ -3,7 +3,7 @@
 
 import { place } from "./git.js";
 import { report, word } from "./agentinfo.js";
-import { tilde, untilde, base, OPEN, RANK, byUrgency, isLater } from "./util.js";
+import { tilde, untilde, base, OPEN, RANK, byUrgency, isLater, commonDir } from "./util.js";
 import { S } from "../strings.js";
 
 // Live sub-agents of `addr`, depth first.
@@ -54,6 +54,25 @@ export function build({ data, sp, ps, ag, ts, repos, h }) {
 
   const projectOfRepo = new Map();
   for (const p of data.projects) for (const r of p.repos ?? []) projectOfRepo.set(tilde(untilde(r, h), h), p.id);
+  // A tab opened for a whole project: its terminals carry tasker.project=<id>; else its
+  // space is the project's own (named after it, in the folder above its repositories).
+  const labelled = new Map();
+  for (const term of ts) {
+    const id = term.labels?.["tasker.project"], tab = term.labels?.["herdr.tab"];
+    if (id && tab) labelled.set(tab, id);
+  }
+  const roots = data.projects.map((p) => {
+    const repos = (p.repos ?? []).map((r) => untilde(r, h));
+    const dir = commonDir(repos) ?? repos[0];
+    return { id: p.id, name: p.name, key: dir ? tilde(dir, h) : null };
+  });
+  const known = new Set(data.projects.map((p) => p.id));
+  const projectOfTab = (tab, where) => {
+    const id = labelled.get(tab);
+    if (id && known.has(id)) return id;
+    if (where.on) return null;
+    return roots.find((r) => r.key && r.key === where.key && where.s.name === r.name)?.id ?? null;
+  };
 
   for (const x of tasks) {
     x.agents = x.tabs.flatMap((tab) => byTab.get(tab) ?? []);
@@ -70,7 +89,7 @@ export function build({ data, sp, ps, ag, ts, repos, h }) {
     const entries = byTab.get(tab) ?? [];
     const tabPanes = ps.filter((p) => p.tab === tab && p.terminal);
     if (!entries.length && !tabPanes.length) continue;
-    untracked.push({ tab, where, agents: entries, panes: tabPanes, top: entries.reduce((m, e) => ((RANK[e.top] ?? 0) > (RANK[m] ?? 0) ? e.top : m), null) });
+    untracked.push({ tab, where, agents: entries, panes: tabPanes, project: projectOfTab(tab, where), top: entries.reduce((m, e) => ((RANK[e.top] ?? 0) > (RANK[m] ?? 0) ? e.top : m), null) });
   }
 
   return { spaces, spaceOfTab, byTab, tasks, taskById, taskOfTab, projectOfRepo, untracked, termBy };
@@ -110,14 +129,15 @@ export function projectTree(w, data, h, filters) {
     name: base(key),
     spaces: w.spaces.filter((s) => s.key === key),
     tasks: [],
-    untracked: w.untracked.filter((u) => u.where.key === key),
+    // A tab opened for a project shows at the project's level, wherever its shell went.
+    untracked: w.untracked.filter((u) => !u.project && u.where.key === key),
   });
   const projects = data.projects.map((p) => {
     const repos = new Map((p.repos ?? []).map((r) => { const k = tilde(untilde(r, h), h); return [k, repoNode(k)]; }));
-    return { p, repos, loose: [] };
+    return { p, repos, loose: [], untracked: w.untracked.filter((u) => u.project === p.id) };
   });
   const byId = new Map(projects.map((x) => [x.p.id, x]));
-  const orphan = { p: null, repos: new Map(), loose: [] };
+  const orphan = { p: null, repos: new Map(), loose: [], untracked: [] };
   for (const x of w.tasks) {
     if (!show(x)) continue;
     const home = (x.project && byId.get(x.project)) || orphan;
@@ -130,7 +150,7 @@ export function projectTree(w, data, h, filters) {
   // whose tabs are all some task's shows up under that task instead.
   for (const s of w.spaces) {
     if (!s.key || w.projectOfRepo.has(s.key) || orphan.repos.has(s.key)) continue;
-    if (!w.untracked.some((u) => u.where.key === s.key)) continue;
+    if (!w.untracked.some((u) => !u.project && u.where.key === s.key)) continue;
     if (projects.some((x) => x.repos.has(s.key))) continue;
     orphan.repos.set(s.key, repoNode(s.key));
   }
@@ -140,8 +160,8 @@ export function projectTree(w, data, h, filters) {
     for (const r of x.repos.values()) r.tasks = order(r.tasks);
     // What's under it: tasks, and tabs that belong to no task.
     const repos = [...x.repos.values()];
-    x.count = x.loose.length + repos.reduce((n, r) => n + r.tasks.length + r.untracked.length, 0);
-    x.top = [...x.loose, ...repos.flatMap((r) => [...r.tasks, ...r.untracked])].reduce((m, t) => ((RANK[t.top] ?? 0) > (RANK[m] ?? 0) ? t.top : m), null);
+    x.count = x.loose.length + x.untracked.length + repos.reduce((n, r) => n + r.tasks.length + r.untracked.length, 0);
+    x.top = [...x.loose, ...x.untracked, ...repos.flatMap((r) => [...r.tasks, ...r.untracked])].reduce((m, t) => ((RANK[t.top] ?? 0) > (RANK[m] ?? 0) ? t.top : m), null);
   }
   return { projects, orphan };
 }

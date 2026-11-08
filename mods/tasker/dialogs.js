@@ -389,7 +389,7 @@ export const Dialogs = {
         .child(sep()))
       .child(item("p-task", "plus", `${S.newTaskTitle}…`, () => { close(); openDialog("task", { project: proj.id }); }))
       .child(item("p-edit", "pencil", `${S.editProjectItem}…`, () => { close(); openDialog("project", { project: proj.id }); }))
-      .when(this.spacesOf(proj.repos ?? []).length > 0, (el) => el.child(item("p-close", "circle-x", `${S.closeProject}…`, () => { close(); openDialog("confirm-close", { repos: proj.repos, name: proj.name }); })));
+      .when(this.spacesOf(proj.repos ?? [], proj.id).length > 0, (el) => el.child(item("p-close", "circle-x", `${S.closeProject}…`, () => { close(); openDialog("confirm-close", { repos: proj.repos, name: proj.name, project: proj.id }); })));
   },
 
   // ── Menu of a tab in no task ───────────────────────────────────────────
@@ -469,17 +469,22 @@ export const Dialogs = {
       ]);
   },
 
-  // The spaces open in these repositories (a worktree's space counts as its repo's).
-  spacesOf(repos) {
+  // The spaces open in these repositories (a worktree's space counts as its repo's), and
+  // with `project`, the project's own spaces (where its tabs above the repositories are).
+  spacesOf(repos, project = null) {
     this.look(null);
     const h = home();
     const keys = new Set(repos.map((r) => tilde(untilde(r, h), h)));
-    return this.world.spaces.filter((s) => s.key && !s.on && keys.has(s.key));
+    const own = new Set(project ? this.world.untracked.filter((u) => u.project === project).map((u) => u.where.s.id) : []);
+    const proj = project ? this.store.project(project) : null;
+    const at = proj ? act.projectPlace(proj, h) : null;
+    const mine = (s) => own.has(s.s.id) || (at && s.s.name === proj.name && s.folder === at.folder);
+    return this.world.spaces.filter((s) => !s.on && ((s.key && keys.has(s.key)) || mine(s)));
   },
 
   closeConfirm(t, p, cx) {
     this.look(cx);
-    const list = this.spacesOf(p.repos ?? []);
+    const list = this.spacesOf(p.repos ?? [], p.project ?? null);
     const tabs = new Set(list.flatMap((s) => (s.s.tabs ?? []).map((x) => x.id)));
     const agents = [...this.world.byTab.entries()].filter(([tab]) => tabs.has(tab)).reduce((n, [, es]) => n + es.length, 0);
     const go = () => { for (const s of list) run("space.close", { id: s.s.id, confirmed: true }); close(); };

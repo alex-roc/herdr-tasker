@@ -171,6 +171,18 @@ test("close a project: one question, then every space of its repos closes", asyn
   assert.deepEqual(H.closed, ["ov1"]);
 });
 
+test("close a project: its own space above the repositories closes too", async () => {
+  const { view } = await mount({ dialog: "confirm-close", overlay: "ov1", repos: ["~/dev/web", "/home/me/dev/docs"], name: "Website", project: "pw" }, () => {
+    H.spaces.push({ id: "sp9", index: 9, name: "Website", named: true, folder: "/home/me/dev", machine: null, branch: null, active: false, status: null,
+      tabs: [{ id: "tb9", index: 1, name: "1", named: false, active: true, status: null, panes: 1 }] });
+    H.panes.push({ pane: "p9", tab: "tb9", terminal: "t9z", title: "t9z", cwd: "/home/me/dev", branch: null, status: null, app: null,
+      program: { key: "shell", name: "zsh", shell: true, agent: false }, focused: false, zoomed: false, movable: true });
+  });
+  H.runs.length = 0;
+  walk(render(view).tree).find((n) => n.id === "close-it").handlers.on_click({}, cx());
+  assert.deepEqual(H.runs.filter(([n]) => n === "space.close").map(([, a]) => a.id).sort(), ["sp2", "sp9"]);
+});
+
 test("a terminal in no task shows its agent's line: model, context, how long", async () => {
   const { view } = await mount({ role: "sidebar" });
   H.shared["tasker.view"] = "now";

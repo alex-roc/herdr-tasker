@@ -8,7 +8,7 @@ import { H, command } from "herdr";
 import { parseDue, dueLabel, slug, shortModel, byUrgency, duration, parseLater } from "../mods/tasker/lib/util.js";
 import { parse, cleanTask, Store, setStatus } from "../mods/tasker/lib/store.js";
 import { build, nowView, projectTree } from "../mods/tasker/lib/world.js";
-import { arrived, launch } from "../mods/tasker/lib/actions.js";
+import { arrived, launch, openInProject } from "../mods/tasker/lib/actions.js";
 import { AgentInfo } from "../mods/tasker/lib/agentinfo.js";
 import { RepoCache } from "../mods/tasker/lib/git.js";
 import { parseClaude, parseCodex, Usage } from "../mods/tasker/lib/usage.js";
@@ -196,19 +196,44 @@ test("launch: opens the agent in the repo's space and marks the task doing", asy
   assert.equal(p.name, "Write docs");
 });
 
-test("launch a task of the whole project: in its first repo, the others added, all of them named", async () => {
+test("launch a task of the whole project: in the folder above its repositories, in the project's own space", async () => {
   world();
   const s = new Store();
   await s.load();
-  await launch(s, s.task("next2")); // project Website, no repo of its own
-  const [, args] = H.runs.at(-1);
-  assert.equal(args.space, "sp2", "the space of its first repo");
-  assert.deepEqual(args.argv, ["claude", "--add-dir", "/home/me/dev/docs"]);
+  await launch(s, s.task("next2")); // project Website (~/dev/web, /home/me/dev/docs), no repo of its own
+  const [cmd, args] = H.runs.at(-1);
+  assert.equal(cmd, "space.new", "not a repository's space");
+  assert.equal(args.folder, "/home/me/dev");
+  assert.equal(args.name, "Website");
+  assert.deepEqual(args.argv, ["claude"], "both repositories are inside: nothing to add");
   assert.match(args.task, /project "Website"[\s\S]*- ~\/dev\/web[\s\S]*- \/home\/me\/dev\/docs[\s\S]*access to all of them/);
   // A task with its own repo hears of the others, without the extra access.
   await launch(s, s.task("next1"));
   assert.deepEqual(H.runs.at(-1)[1].argv, ["claude"]);
   assert.match(H.runs.at(-1)[1].task, /- ~\/dev\/web \(this task's\)/);
+});
+
+test("a project's terminal: its own space above the repositories, shown at the project's level", async () => {
+  world();
+  const s = new Store();
+  await s.load();
+  const proj = s.project("pw");
+  openInProject(proj);
+  assert.deepEqual(H.runs.at(-1), ["space.new", { name: "Website", folder: "/home/me/dev" }]);
+  const pending = H.shared["tasker.pending"].at(-1);
+  assert.equal(pending.project, "pw");
+  // The space arrives, its terminal labelled for the project (as the bookkeeping does).
+  H.spaces.push({ id: "sp9", index: 9, name: "Website", named: true, folder: "/home/me/dev", machine: null, branch: null, active: false, status: null,
+    tabs: [{ id: "tb9", index: 1, name: "1", named: false, active: true, status: null, panes: 1 }] });
+  H.panes.push({ pane: "p9", tab: "tb9", terminal: "t9z", title: "t9z", cwd: "/home/me/dev", branch: null, status: null, app: null,
+    program: { key: "shell", name: "zsh", shell: true, agent: false }, focused: false, zoomed: false, movable: true });
+  H.terminals.push({ address: "t9z", state: "live", labels: { "herdr.space": "sp9", "herdr.tab": "tb9", "tasker.project": "pw" }, foreground: { pid: 99, argv: ["zsh"], cwd: "/home/me/dev" } });
+  const w = build({ data: s.data, sp: H.spaces, ps: H.panes, ag: H.agents, ts: H.terminals, repos: new RepoCache(), h: H.home });
+  const tree = projectTree(w, s.data, H.home, { done: false });
+  const web = tree.projects.find((x) => x.p.id === "pw");
+  assert.deepEqual(web.untracked.map((u) => u.tab), ["tb9"], "at the project's level");
+  assert.ok(![...web.repos.values()].some((r) => r.untracked.some((u) => u.tab === "tb9")));
+  assert.ok(!tree.orphan.repos.has("~/dev"), "not a folder under No project");
 });
 
 test("resume a task of the whole project: the other repositories are added again", async () => {

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.1 — 2026-11-08
+
+### Changed
+- Work for a whole project (its terminal and agents, a task with a project but no repository) opens in
+  the project's own space, in the nearest folder holding all its repositories (`~/dev`), instead of
+  its first repository, and shows at the project's level, above its repositories (its terminals are
+  labelled `tasker.project=<id>`). *Close project* closes that space too.
+
 ## 1.2.0 — 2026-11-08
 
 ### New

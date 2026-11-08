@@ -8,7 +8,7 @@ import { theme, run, shared, setShared, setAgentOrder, home, spaces, terminals, 
 import { S } from "./strings.js";
 import { setStatus } from "./lib/store.js";
 import { nowView, projectTree, untrackedName } from "./lib/world.js";
-import { arrived, link, openHere, adopt, openInProject } from "./lib/actions.js";
+import { arrived, link, openHere, adopt, openInProject, labelProject } from "./lib/actions.js";
 import { RANK, shortModel, kilo, base, tilde, today, isLater, laterLabel } from "./lib/util.js";
 import { taskMark, prioChip, dueChip, agentMark, sectionHeader, iconButton, programIcon, CHEVRON, icon, agentFor, shownLists } from "./lib/ui.js";
 import { sharedCache } from "./lib/cache.js";
@@ -161,7 +161,11 @@ export const Sidebar = {
       const taken = new Set(w.taskOfTab.keys());
       for (const p of pending) {
         const tab = arrived({ ...p, beforeTabs: new Set(p.beforeTabs), beforeSpaces: new Set(p.beforeSpaces) }, sp, taken);
-        if (tab) { taken.add(tab); cx.spawn(async () => link(this.store, p.task, tab, terminals())); }
+        if (tab) {
+          taken.add(tab);
+          if (p.project) cx.spawn(async () => labelProject(p.project, tab, terminals()));
+          else cx.spawn(async () => link(this.store, p.task, tab, terminals()));
+        }
         else if (now - p.at < 30000) left.push(p);
       }
       if (left.length !== pending.length) setShared("tasker.pending", left);
@@ -387,7 +391,9 @@ export const Sidebar = {
         .child(div().text_size(11).text_color(t.dim).child(String(x.count)))
         .child(svg(CHEVRON(open)).size(11).flex_none().text_color(t.dim)));
       if (!open) return;
+      // The whole project's work first (tasks and tabs above its repositories), then each repository.
       for (const t2 of x.loose) { rows.push(this.taskRow(t, t2, { depth: 1 })); order.push(t2.t.id); }
+      for (const u of x.untracked) rows.push(this.untrackedRow(t, u, 1));
       for (const r of x.repos.values()) repoRows(p, r);
     };
     for (const x of tree.projects) projectHeader(x);

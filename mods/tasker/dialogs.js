@@ -7,7 +7,7 @@ import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui
 import { props, closeOverlay, theme, home, spaces, panes, shared, setShared, run, notify, knownAgents, terminals, layout, pickFolder } from "herdr";
 import { untrackedName } from "./lib/world.js";
 import { S } from "./strings.js";
-import { newTask, newProject, setStatus } from "./lib/store.js";
+import { newTask, newProject, setStatus, kept } from "./lib/store.js";
 import { STATUSES, tilde, untilde, base, byUrgency, OPEN, parseDue, dueLabel, issueLabel, isLater, laterLabel, parseLater } from "./lib/util.js";
 import { linearKey, linearIssues } from "./lib/linear.js";
 import { place, repoState } from "./lib/git.js";
@@ -160,7 +160,7 @@ export const Dialogs = {
           if (!id) { const t = newTask(d, { ...fields, status: f.status }); setShared("tasker.selected", t.id); return; }
           const t = d.tasks.find((x) => x.id === id);
           if (!t) return false;
-          Object.assign(t, fields, { updated: Date.now() });
+          Object.assign(kept(t), fields, { updated: Date.now() });
           setStatus(t, f.status);
         });
       } finally {
@@ -294,7 +294,7 @@ export const Dialogs = {
   menu(t, p) {
     const task = this.store.task(p.task);
     if (!task) return div().p(10).text_color(t.dim).child(S.loading);
-    const upd = (fn) => (_e, cx) => this.closeAfter(cx, () => this.store.update((d) => { const x = d.tasks.find((y) => y.id === task.id); if (!x) return false; fn(x); x.updated = Date.now(); }));
+    const upd = (fn) => (_e, cx) => this.closeAfter(cx, () => this.store.update((d) => { const x = d.tasks.find((y) => y.id === task.id); if (!x) return false; fn(kept(x)); x.updated = Date.now(); }));
     const item = (id, iconName, label, onClick, hint, color) => h_flex().id(id).h(28).px(8).gap(8).rounded(6).items_center().cursor_pointer()
       .text_color(color ?? t.foreground).hover((s) => s.bg(t.hover)).on_click(onClick)
       .child(icon(iconName, 13, color ?? t.muted)).child(div().flex_1().child(label))
@@ -381,7 +381,7 @@ export const Dialogs = {
       .hover((s) => s.bg(t.hover)).on_click(onClick).child(icon(iconName, 13, t.muted)).child(div().flex_1().truncate().child(label));
     const sep = () => div().h(1).my(4).bg(t.border);
     const has = (proj.repos ?? []).length > 0;
-    const at = has ? act.projectPlace(proj, home()) : null;
+    const at = act.projectPlace(proj, home());
     // Plan (its board, a task), work (a terminal or an agent across its repositories), manage.
     return v_flex().p(5).text_size(12.5)
       .child(h_flex().px(8).pt(4).pb(6).gap(6).items_center()
@@ -391,12 +391,10 @@ export const Dialogs = {
       .child(item("p-board", "square-kanban", S.projectBoard, () => { close(); act.openBoard(proj); }))
       .child(item("p-task", "plus", `${S.newTaskTitle}…`, () => { close(); openDialog("task", { project: proj.id }); }))
       .child(sep())
-      .when(has, (el) => el
-        .child(div().px(8).pb(2).text_size(11).text_color(t.dim).truncate().child(S.workIn(tilde(at.folder, home()))))
-        .child(item("p-term", "square-terminal", S.projectTerminal, () => { close(); act.openInProject(proj); }))
-        .children(this.agentList.map((a) => item(`p-ag-${a.key}`, "bot", S.newAgent(a.name), () => { close(); act.openInProject(proj, a.run); })))
-        .child(sep()))
-      .when(!has, (el) => el.child(div().px(8).py(4).text_size(11).text_color(t.dim).child(S.projectNoRepos)).child(sep()))
+      .child(div().px(8).pb(2).text_size(11).text_color(t.dim).truncate().child(has ? S.workIn(tilde(at.folder, home())) : S.workInHome))
+      .child(item("p-term", "square-terminal", S.projectTerminal, () => { close(); act.openInProject(proj); }))
+      .children(this.agentList.map((a) => item(`p-ag-${a.key}`, "bot", S.newAgent(a.name), () => { close(); act.openInProject(proj, a.run); })))
+      .child(sep())
       .child(item("p-edit", "pencil", `${S.editProjectItem}…`, () => { close(); openDialog("project", { project: proj.id }); }))
       .when(this.spacesOf(proj.repos ?? [], proj.id).length > 0, (el) => el.child(item("p-close", "circle-x", `${S.closeProject}…`, () => { close(); openDialog("confirm-close", { repos: proj.repos, name: proj.name, project: proj.id }); })));
   },
@@ -434,7 +432,7 @@ export const Dialogs = {
     const v = parseLater(this.laterText);
     const id = props().task;
     if (!v || !id) return;
-    this.closeAfter(cx, () => this.store.update((d) => { const x = d.tasks.find((y) => y.id === id); if (!x) return false; x.snooze = v; x.updated = Date.now(); }));
+    this.closeAfter(cx, () => this.store.update((d) => { const x = d.tasks.find((y) => y.id === id); if (!x) return false; kept(x).snooze = v; x.updated = Date.now(); }));
   },
 
   laterForm(t, cx) {
@@ -539,8 +537,12 @@ export const Dialogs = {
     const setting = (label, hint, el) => v_flex().gap(6)
       .child(div().text_size(12).font_medium().child(label)).child(el)
       .child(div().text_size(11).text_color(t.dim).child(hint));
-    return this.withFooter(t, v_flex().gap(18)
+    return this.withFooter(t, v_flex().gap(14)
       .child(this.title(t, S.settingsTitle))
+      .child(setting(S.track, S.trackHint, h_flex().gap(4).children([[true, S.on], [false, S.off]].map(([v, label]) =>
+        h_flex().id(`track-${v}`).h(26).px(10).rounded(6).items_center().text_size(11.5).cursor_pointer()
+          .border_1().border_color(s.track === v ? t.accent : t.input).bg(s.track === v ? t.accent + "26" : t.background)
+          .hover((x) => x.bg(t.hover)).on_click(set({ track: v })).child(label)))))
       .when(Boolean(lists), (el) => el.child(setting(S.listsLayout, S.listsLayoutHint, h_flex().gap(4).children([["tasker-sidebar", S.listsTabs], ["tasker-split", S.listsStacked]].map(([child, label]) => {
         const on = (lists.active ?? lists.children?.[0]?.id) === child;
         return h_flex().id(`lists-${child}`).h(26).px(10).rounded(6).items_center().text_size(11.5).cursor_pointer()
@@ -549,6 +551,10 @@ export const Dialogs = {
       })))))
       .child(setting(S.wipLimit, S.wipLimitHint, stepper("wip", s.wip, 1, 20, String(s.wip), "wip")))
       .child(setting(S.staleDays, S.staleDaysHint, stepper("stale", s.stale_days, 1, 60, S.days(s.stale_days), "stale_days")))
+      .child(setting(S.revive, S.reviveHint, h_flex().gap(4).children([[true, S.on], [false, S.off]].map(([v, label]) =>
+        h_flex().id(`rev-${v}`).h(26).px(10).rounded(6).items_center().text_size(11.5).cursor_pointer()
+          .border_1().border_color(s.revive === v ? t.accent : t.input).bg(s.revive === v ? t.accent + "26" : t.background)
+          .hover((x) => x.bg(t.hover)).on_click(set({ revive: v })).child(label)))))
       .child(setting(S.reminders, S.remindersHint, h_flex().gap(4).children([[true, S.on], [false, S.off]].map(([v, label]) =>
         h_flex().id(`rem-${v}`).h(26).px(10).rounded(6).items_center().text_size(11.5).cursor_pointer()
           .border_1().border_color(s.reminders === v ? t.accent : t.input).bg(s.reminders === v ? t.accent + "26" : t.background)

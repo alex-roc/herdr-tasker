@@ -5,7 +5,7 @@ import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { theme, setShared, run, shared, props } from "herdr";
 import { S } from "./strings.js";
-import { setStatus } from "./lib/store.js";
+import { setStatus, kept } from "./lib/store.js";
 import { RANK, byUrgency, base, shortModel, issueLabel, isLater, laterLabel } from "./lib/util.js";
 import { statusIcon, taskMark, prioChip, dueChip, chip, iconButton, icon, agentFor, agentMark, programIcon } from "./lib/ui.js";
 import { untrackedName } from "./lib/world.js";
@@ -65,7 +65,7 @@ export const Board = {
     this.over = null;
     if (!task) return cx.notify();
     if (task.status !== status) {
-      cx.spawn(async () => this.store.update((d) => { const t = d.tasks.find((y) => y.id === from); if (!t) return false; setStatus(t, status); }));
+      cx.spawn(async () => this.store.update((d) => { const t = d.tasks.find((y) => y.id === from); if (!t) return false; kept(t); setStatus(t, status); }));
     } else {
       setShared("tasker.selected", from);
       run("layout.show", { id: "tasker-detail" });

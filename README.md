@@ -52,9 +52,18 @@ the detail): tomorrow, next week, a day you type (`fri`, `+3d`, `12-24`) or *som
 comes back with a notification. Once a day, a notification also tells you what's due or late
 (*Reminders* in the settings turns both off).
 
-Agents in tabs that belong to no task show up too: in the section that fits when they need you,
-finished or are working, and under **Not in a task** otherwise. **Make task** turns one into a task;
-its menu also offers **Add to task…** to tie it to one you already have.
+**Tasks or terminals, the same flow.** Every agent's tab is a task from its start (*Track agents
+automatically*, on by default): a light one, named after what the agent calls its work, Doing while it
+works and in Review when it's done, on the board and in Projects like any other. Put it off, give it a
+priority or a note, drag it on the board: it's yours from then on. A light one you never touched goes
+away when you close its tab. So you can work only with terminals and agents and still get the list,
+the board, Later, the reminders and the resume after a restart; and plan tasks with details (next
+step, notes, due date, issues, a worktree) when you want them. Shells aren't tasks.
+
+With tracking off, agents in no task show up in the section that fits when they need you, finished
+or are working, and under **Not in a task** otherwise. **Make task** turns one into a task; its menu
+also offers **Add to task…** to tie it to one you already have. A tab whose task you deleted isn't
+tracked again by itself.
 
 **Projects**: an outline of projects → repositories → tasks. Each repository shows its branch,
 commits not pushed (↑) and uncommitted changes (•), and the terminals open there that belong to no
@@ -65,7 +74,8 @@ for the whole project, and `⋯` (or right-click), its menu: board and new task;
 installed agent across its repositories; edit it, or close all its spaces. Work for the whole project
 (its terminal, its agents, a task with a project but no repository) opens in the project's own space,
 named after it, in the nearest folder holding all its repositories (`~/dev` for `~/dev/a` and
-`~/dev/b`), and shows at the project's level, above its repositories. Its agent is told which
+`~/dev/b`; your home folder while it has none), and shows at the project's level, above its
+repositories. Drag a project's row onto another to reorder them. Its agent is told which
 repositories are the project's (any outside that folder is added with `--add-dir`, Claude Code and
 Codex); a task in one repository of a bigger project hears of the others. Terminals and agents in no task show the same line as a task:
 model, effort, context and how long in their state.
@@ -141,8 +151,9 @@ Your other layouts are untouched; switch back the same way.
    `12-24` or `2026-12-24`.
 3. **Start an agent.** `l` (or ▶ on hover, or *Start agent* in the detail) starts your agent with the
    task as its first message; `w` does it in a new worktree. The new tab is tied to the task.
-4. **Already working?** An agent in no task has **Make task**, **Add to task…** in its menu, and a
-   card in the board's **No task** lane to drag onto a column.
+4. **Already working?** Your agents' tabs are tasks already (light ones). With tracking off, an agent
+   in no task has **Make task**, **Add to task…** in its menu, and a card in the board's **No task**
+   lane to drag onto a column.
 5. **Work from Now.** Answer what needs you, review what's done (*Show changes*, the PR and its
    checks are in the detail), then press `space` to mark it done.
 
@@ -150,6 +161,14 @@ Settings (the gear in the status bar): Now and Projects as tabs or **stacked** (
 above the other, as Herdr's spaces and agents), how many tasks can be in Doing before the status bar
 warns you, after how many days a task counts as stalled, which agent *Start agent* runs, and whether
 the status bar shows plan usage. Stacked, `tab` moves the keys between the two lists.
+
+**After a restart**: Herdr brings every terminal back, as a shell in its last folder. tasker
+remembers which Claude Code or Codex conversation each one had (`data/tasker/terminals.json`), and
+in a terminal that comes back as a fresh shell it types `cd <folder> && claude --resume <id>` (or
+`codex resume <id>`), with a notification. Quitting an agent yourself isn't undone. *Agents after a
+restart* in the settings turns it off. Agents that report no state to Herdr (Claude Code attached to
+its background session with `claude attach`) still show as agents, with their model and context;
+whether they work or stopped is read from their terminal's title.
 
 **Linear** (optional): create a personal API key (Linear → Settings → Security & access → Personal
 API keys) and either export it as `LINEAR_API_KEY` in your login shell profile or save it alone in

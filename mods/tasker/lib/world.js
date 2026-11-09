@@ -6,13 +6,23 @@ import { report, word } from "./agentinfo.js";
 import { tilde, untilde, base, OPEN, RANK, byUrgency, isLater, commonDir } from "./util.js";
 import { S } from "../strings.js";
 
+// The state an agent shows in its terminal's title when it reports none to Herdr: Claude
+// Code puts a spinner first while it works (◐◓◑◒, or braille) and ✳ when it stops.
+export function titleState(title) {
+  const c = String(title ?? "").codePointAt(0);
+  if (c == null) return null;
+  if ((c >= 0x25d0 && c <= 0x25d3) || (c >= 0x2801 && c <= 0x28ff)) return "working";
+  if (c === 0x2733) return "idle";
+  return null;
+}
+
 // Live sub-agents of `addr`, depth first.
 function kids(ts, addr, depth = 1) {
   return ts.filter((k) => k.parent === addr && k.state === "live")
     .flatMap((k) => [{ term: k, depth }, ...kids(ts, k.address, depth + 1)]);
 }
 
-export function build({ data, sp, ps, ag, ts, repos, h }) {
+export function build({ data, sp, ps, ag, ts, repos, h, titles = null }) {
   const termBy = new Map(ts.map((t) => [t.address, t]));
   const agentStatus = new Map(ag.map((a) => [a.address, a.status]));
 
@@ -41,6 +51,25 @@ export function build({ data, sp, ps, ag, ts, repos, h }) {
     byTab.get(a.tab).push(entry);
   }
 
+  // Agents that report no state (Claude Code attached to its background session with
+  // `claude attach`): a pane whose program is an agent still counts as one, state unknown.
+  const reporting = new Set(ag.map((a) => a.address));
+  for (const p of ps) {
+    if (!p.terminal || reporting.has(p.terminal)) continue;
+    const term = termBy.get(p.terminal) ?? null;
+    // What's in front decides: a shell is none (its `app` can linger from an agent that quit);
+    // otherwise an agent by Herdr's table, its report, or its program (claude, codex).
+    const prog = p.program ?? term?.program;
+    if (!prog || prog.shell || !(prog.agent || p.app || ["claude", "codex"].includes(prog.key))) continue;
+    // Its state from its title (working, idle): as given, else as read from the core
+    // (Herdr hands mods the title without the mark), else unknown.
+    const status = titleState(term?.title ?? p.title) ?? titles?.get(p.terminal) ?? "unknown";
+    const a = { address: p.terminal, pane: p.pane, tab: p.tab, status, app: p.app ?? null, program: p.program ?? term?.program, title: p.title };
+    const entry = { a, term, status, top: status, quiet: true, report: report(term), subs: kids(ts, p.terminal) };
+    if (!byTab.has(p.tab)) byTab.set(p.tab, []);
+    byTab.get(p.tab).push(entry);
+  }
+
   // Tasks and their tabs: as stored, plus terminals labelled with a task (a tab the store lost).
   const tasks = data.tasks.filter((t) => !t.deleted).map((t) => ({ t, tabs: [...(t.tabs ?? [])] }));
   const taskById = new Map(tasks.map((x) => [x.t.id, x]));
@@ -63,7 +92,7 @@ export function build({ data, sp, ps, ag, ts, repos, h }) {
   }
   const roots = data.projects.map((p) => {
     const repos = (p.repos ?? []).map((r) => untilde(r, h));
-    const dir = commonDir(repos) ?? repos[0];
+    const dir = commonDir(repos) ?? repos[0] ?? h; // no repositories yet: the home folder
     return { id: p.id, name: p.name, key: dir ? tilde(dir, h) : null };
   });
   const known = new Set(data.projects.map((p) => p.id));
@@ -164,6 +193,13 @@ export function projectTree(w, data, h, filters) {
     x.top = [...x.loose, ...x.untracked, ...repos.flatMap((r) => [...r.tasks, ...r.untracked])].reduce((m, t) => ((RANK[t.top] ?? 0) > (RANK[m] ?? 0) ? t.top : m), null);
   }
   return { projects, orphan };
+}
+
+// An agent's own title (what it calls its work), unless it's only its address.
+export function agentTitle(e) {
+  const addresses = new Set([e?.a?.address, e?.a?.address?.split("/").pop()].filter(Boolean));
+  const t = [e?.term?.title, e?.a?.title].map((x) => String(x ?? "").trim()).find((x) => x && !addresses.has(x));
+  return t || null;
 }
 
 // A tab outside any task, by what people recognise: its name, the agent's title,

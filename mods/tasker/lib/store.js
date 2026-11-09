@@ -11,7 +11,7 @@ import { S } from "../strings.js";
 export const DIR = () => `${appHome()}/data/tasker`;
 export const FILE = () => `${DIR()}/tasks.json`;
 
-export const DEFAULTS = { wip: 3, stale_days: 3, agent: "claude", usage: false, reminders: true };
+export const DEFAULTS = { wip: 3, stale_days: 3, agent: "claude", usage: false, reminders: true, revive: true, track: true };
 const EMPTY = () => ({ version: 1, settings: { ...DEFAULTS }, projects: [], tasks: [] });
 
 const str = (v) => (typeof v === "string" ? v : v == null ? "" : String(v));
@@ -27,8 +27,9 @@ export function cleanTask(t) {
   const p = PRIORITY[str(t.priority).toLowerCase()] ?? num(t.priority, 2);
   // Only absolute dates: a word like "tomorrow" in the file would move every day.
   const due = /^\d{4}-\d{1,2}-\d{1,2}$/.test(str(t.due).trim()) ? parseDue(t.due) : null;
+  const { auto: _auto, ...rest } = t;
   return {
-    ...t,
+    ...rest,
     id: str(t.id) || uid(),
     title: str(t.title).trim() || "Untitled",
     project: strOrNull(t.project),
@@ -40,6 +41,9 @@ export function cleanTask(t) {
     next_step: str(t.next_step),
     notes: str(t.notes),
     issue: t.issue && typeof t.issue === "object" && t.issue.number != null ? { ...t.issue, url: str(t.issue.url) } : null,
+    // Made by tasker for an agent's tab (a light task): renamed after its agent, gone with its
+    // tab, until the person changes anything on it.
+    ...(t.auto === true ? { auto: true } : {}),
     // Later: until a day, or "someday"; and the last day a due reminder went out.
     snooze: t.snooze === "someday" || /^\d{4}-\d{2}-\d{2}$/.test(str(t.snooze)) ? t.snooze : null,
     reminded: /^\d{4}-\d{2}-\d{2}$/.test(str(t.reminded)) ? t.reminded : null,
@@ -84,6 +88,8 @@ export function parse(text) {
   settings.agent = str(settings.agent) || DEFAULTS.agent;
   settings.usage = settings.usage === true; // off unless turned on: it starts a `claude` now and then
   settings.reminders = settings.reminders !== false;
+  settings.revive = settings.revive !== false;
+  settings.track = settings.track !== false;
   const obj = (x) => x && typeof x === "object" && !Array.isArray(x);
   return {
     ...d,
@@ -220,6 +226,12 @@ export function newTask(data, fields) {
     ...fields,
   };
   data.tasks.push(t);
+  return t;
+}
+
+// The person changed something on a task: a light one becomes theirs (kept, named as it is).
+export function kept(t) {
+  if (t) delete t.auto;
   return t;
 }
 

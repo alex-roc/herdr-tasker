@@ -4,7 +4,7 @@ import { div } from "gpui-kit";
 import { v_flex, h_flex, TextareaState, Textarea } from "gpui-base";
 import { theme, run, shared, hc, home, window, focused } from "herdr";
 import { S } from "./strings.js";
-import { setStatus } from "./lib/store.js";
+import { setStatus, kept } from "./lib/store.js";
 import { diffStat } from "./lib/git.js";
 import { send, pullRequest, openUrl } from "./lib/actions.js";
 import { RANK, duration, shortModel, kilo, base, untilde, STATUSES, issueLabel, isLater, laterLabel } from "./lib/util.js";
@@ -74,7 +74,7 @@ export const Detail = {
   },
 
   upd(cx, id, fn) {
-    cx.spawn(async () => this.store.update((d) => { const t = d.tasks.find((y) => y.id === id); if (!t) return false; fn(t); t.updated = Date.now(); }));
+    cx.spawn(async () => this.store.update((d) => { const t = d.tasks.find((y) => y.id === id); if (!t) return false; fn(kept(t)); t.updated = Date.now(); }));
   },
 
   section(t, label, ...children) {

@@ -13,6 +13,7 @@ import { RepoCache } from "./lib/git.js";
 import { AgentInfo } from "./lib/agentinfo.js";
 import { build } from "./lib/world.js";
 import { Usage } from "./lib/usage.js";
+import { Titles } from "./lib/titles.js";
 import { sharedCache } from "./lib/cache.js";
 import { launch } from "./lib/actions.js";
 import { today, localDay, resetsLabel } from "./lib/util.js";
@@ -29,6 +30,8 @@ export default class Tasker extends View {
     this.store.watch(cx);
     this.repos = new RepoCache();
     this.info = new AgentInfo();
+    this.titles = new Titles(); // the state of agents that report none, from their titles
+    this.quiet = [];
     this.world = null;
     // When each agent's state last changed: terminals() doesn't always say.
     // One record for every copy, so the sidebar, the board and the detail agree.
@@ -50,9 +53,11 @@ export default class Tasker extends View {
   look(cx) {
     const sp = spaces(), ps = panes(), ts = terminals();
     const ag = agents();
-    this.world = build({ data: this.store.data, sp, ps, ag, ts, repos: this.repos, h: home() });
+    this.world = build({ data: this.store.data, sp, ps, ag, ts, repos: this.repos, h: home(), titles: this.titles });
     this.track(ag, ts);
     if (!cx || this.role === "dialog") return;
+    this.quiet = [...this.world.byTab.values()].flat().filter((e) => e.quiet).map((e) => e.a.address);
+    if (this.role === "sidebar" && this.quiet.length) this.titles.refresh(cx, this.quiet);
     if (this.role === "sidebar") {
       // Repo state of every local space (remote ones stay as folders).
       const list = this.world.spaces.filter((s) => s.folder && !s.on).map((s) => ({ folder: s.folder, on: null }));

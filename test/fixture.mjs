@@ -135,7 +135,7 @@ export function world({ tasks: extraTasks = [], projects: extraProjects, setting
     task({ id: "remote1", title: "Remote work", repo: "/srv/api", status: "doing", tabs: ["vps/tb7"] }),
     ...extraTasks,
   ];
-  H.files.set(FILE(), JSON.stringify({ version: 1, settings: { wip: 2, stale_days: 3, agent: "claude", ...settings }, projects, tasks }, null, 1));
+  H.files.set(FILE(), JSON.stringify({ version: 1, settings: { wip: 2, stale_days: 3, agent: "claude", track: false, ...settings }, projects, tasks }, null, 1));
   H.exec = fakeExec;
   H.hc = (args) => (args[0] === "read" ? { code: 0, stdout: "[hc] note\n$ npm test\n\n✓ 12 passed\n> ", stderr: "" } : { code: 0, stdout: "", stderr: "" });
   return H;

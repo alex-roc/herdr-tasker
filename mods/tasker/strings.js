@@ -130,6 +130,12 @@ export const S = {
   bringBack: "Bring back",
   backTitle: (n) => (n === 1 ? "Back from Later" : `${n} tasks back from Later`),
   dueTitle: (late, n) => (late ? (n === 1 ? "A task is late" : `${n} tasks are late or due`) : n === 1 ? "Due today" : `${n} tasks due today`),
+  track: "Track agents automatically",
+  trackHint: "Every agent's tab is a task from its start, named after the agent, gone when its tab closes unless you changed something on it. Off: only the tasks you make.",
+  revive: "Agents after a restart",
+  reviveHint: "When a terminal comes back after a reboot, its Claude Code or Codex conversation is resumed in it.",
+  revived: (n) => (n === 1 ? "An agent is back" : `${n} agents are back`),
+  revivedBody: "Their conversations were resumed after the restart.",
   reminders: "Reminders",
   remindersHint: "A notification when a task you put off comes back, and once a day for what's due or late.",
   closeRepo: "Close repo",
@@ -141,7 +147,7 @@ export const S = {
   projectTerminalHint: "A terminal for the whole project, above its repositories",
   projectTaskHint: "New task for the whole project (its agent works across every repository)",
   editProjectItem: "Edit project",
-  projectNoRepos: "No repositories yet: edit the project to add some.",
+  workInHome: "No repositories yet: in your home folder",
   addFolderPrompt: "A repository for this project",
   inProject: (name) => `in ${name}`,
 
@@ -174,7 +180,7 @@ export const S = {
   estimateChip: (e) => `est. ${e}`,
   turn: (n) => `turn ${n}`,
   // How long an agent has been in its state.
-  agentFor: { working: (d) => `working ${d}`, blocked: (d) => `waiting ${d}`, done: (d) => `finished ${d} ago`, idle: (d) => `idle ${d}` },
+  agentFor: { working: (d) => `working ${d}`, blocked: (d) => `waiting ${d}`, done: (d) => `finished ${d} ago`, idle: (d) => `idle ${d}`, unknown: (d) => `running ${d}` },
   ctx: (k) => `ctx ${k}`,
 
   // Status bar

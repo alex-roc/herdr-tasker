@@ -61,13 +61,35 @@ async function homeOf(on) {
   return c.info[on] ?? null;
 }
 
-async function claude(pid, on) {
+// A transcript's folder: ~/.claude/projects/<folder, non-alphanumerics as ->.
+const projectDir = (h, cwd) => `${h}/.claude/projects/${cwd.replace(/[^A-Za-z0-9]/g, "-")}`;
+
+// `claude attach <id>` (a client of Claude Code's background session) writes no
+// sessions/<pid>.json: the id it names starts the transcript's name.
+async function attached(fg, h, on) {
+  const argv = fg?.argv ?? [];
+  const i = argv.indexOf("attach");
+  const short = i >= 0 ? argv[i + 1] : null;
+  const cwd = fg?.cwd;
+  if (!short || !/^[\w-]+$/.test(short) || !cwd) return null;
+  try {
+    const r = await exec("sh", ["-c", 'ls -t "$1"/"$2"*.jsonl 2>/dev/null | head -1', "sh", projectDir(h, cwd), short], { on });
+    const file = (r.stdout ?? "").trim();
+    const id = /\/([\w-]+)\.jsonl$/.exec(file)?.[1];
+    return id ? { sessionId: id, cwd } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function claude(fg, on) {
   const h = await homeOf(on);
   if (!h) return null;
   let session;
-  try { session = JSON.parse(await readTextFile(`${h}/.claude/sessions/${pid}.json`, { on }) ?? "null"); } catch {}
+  try { session = JSON.parse(await readTextFile(`${h}/.claude/sessions/${fg.pid}.json`, { on }) ?? "null"); } catch {}
+  if (!session?.sessionId || !session?.cwd) session = await attached(fg, h, on);
   if (!session?.sessionId || !session?.cwd) return null;
-  const file = `${h}/.claude/projects/${session.cwd.replace(/[^A-Za-z0-9]/g, "-")}/${session.sessionId}.jsonl`;
+  const file = `${projectDir(h, session.cwd)}/${session.sessionId}.jsonl`;
   // Transcripts hold multi-megabyte lines (pasted images): pick the fields out with grep
   // instead of parsing whole lines. The last of each wins.
   // 4 MB first (~0.3 s); 16 MB only when a big paste hid every model line.
@@ -155,7 +177,7 @@ export class AgentInfo {
         const on = t.address.includes("/") ? t.address.split("/")[0] : null;
         let info = null;
         try {
-          info = kind(t) === "claude" ? await claude(pid, on) : await codex(pid, t.foreground.cwd ?? t.cwd, on);
+          info = kind(t) === "claude" ? await claude(t.foreground, on) : await codex(pid, t.foreground.cwd ?? t.cwd, on);
         } catch {}
         if (info && JSON.stringify(info) !== JSON.stringify(this.c.info[t.address])) { this.c.info[t.address] = info; changed = true; }
         this.c.seen[t.address] = { pid, status: word(t), at: Date.now() };

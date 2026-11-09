@@ -29,7 +29,9 @@ every task by status.
     repository's tasks, and its tabs in no task. Open git repositories and folders in no project go
     under "No project". While the pointer is on a project row, its count gives way to its actions:
     `square-kanban` (its board), `square-terminal` (a terminal for the whole project), `plus` (a task
-    for the whole project) and `ellipsis` (its menu).
+    for the whole project) and `ellipsis` (its menu). Dragging a project row onto another moves it
+    there (dimmed while dragged; a 2px `accent` line above or below the target shows where it lands);
+    the order is `projects` in tasks.json.
   - **Task row**: 16px mark (the lead agent's state as Herdr draws it: spinner, "!" on
     `blocked`+26 alpha, 7px dot `done`, ring `idle`; else the status icon: inbox, circle-dot,
     circle-play, circle-pause, eye, circle-check, circle-x), title (semibold when its agent is done),
@@ -83,7 +85,7 @@ every task by status.
   "N open", a `panel-right` button that shows or hides the detail (`foreground` when shown) and a
   settings gear. Plan usage is off until turned on.
 - **Dialogs** (Herdr dialogs, `popover` background): task form 560×660, project 480×500 (repositories
-  to tick, and *Add folder…* with the system's folder picker), settings 480×700, find 520×420, issues
+  to tick, and *Add folder…* with the system's folder picker), settings 480×940, find 520×420, issues
   540×460, archive 460×230, delete 420×190, close 440×200, later 420×200; menus are popups (task
   270×410, repository 250×370, project 270×290, loose tab 240×150). Forms scroll and keep their
   buttons in a footer with a border.
@@ -115,7 +117,8 @@ every task by status.
   (or `tasker.focus`).
 - A task for the whole project (a project, no repository) and a project's own terminals and agents
   run in the project's own space (named after it) in the nearest folder holding all its repositories
-  (a lone repository's parent), with `--add-dir` for any repository outside it (Claude Code and Codex);
+  (a lone repository's parent; the home folder for a project with none), with `--add-dir` for any
+  repository outside it (Claude Code and Codex);
   the first message names every repository of the project. Their terminals are labelled
   `tasker.project=<id>` and their tabs show at the project's level, above its repositories, never
   under a repository or No project. Close project closes that space too. A task in one repository of a bigger project hears of the others.
@@ -137,6 +140,23 @@ every task by status.
 - Resume: while a local Claude Code or Codex agent runs, its session id and folder are kept on the
   task (`sessions`, newest 5). Resume runs the agent's `run` + `--resume <id>` (Codex: `resume <id>`)
   in that folder, with no first message, through the same launch-and-tie path as Start agent.
+- Light tasks (setting `track`, on by default): the bookkeeping adopts every tab with an agent and no
+  task as a task with `auto: true` (status from its agent: Doing, Review, else Next; a tab opened for a
+  project goes to that project with no repository). While `auto`, its title follows the agent's own
+  title, and a minute after its tab is gone from every space (not counting away machines or no spaces
+  at all) it's removed. Any change the person makes (form, menu, keys, detail, board, Later) drops
+  `auto` (`kept()`). A tab whose task was deleted isn't adopted again by itself.
+- Agents after a restart (`lib/revive.js`, setting `revive`, on by default): for each local terminal
+  with a Claude Code or Codex agent in front and a transcript, `data/tasker/terminals.json` keeps
+  `{pid, tab, app, id, cwd, at}` by address. A terminal at that address, in that tab, with another
+  pid and no agent in front (Herdr recovered it as a shell) gets `cd '<cwd>' && <resume>` through
+  `env -u HC_TERMINAL_ID hc send`, once, and a notification. The same shell alone in front for 10 s
+  (quit by hand) forgets it; another tab at the address forgets it; 14 days old, forgotten.
+- A pane whose program isn't a shell and is an agent by Herdr's table, its report or its key
+  (claude, codex) counts as an agent even when it reports no state (`claude attach`). Its state comes
+  from its title as the core has it (`hc get`: Herdr strips the mark for mods), every 3 s with the
+  window in front, a change redrawing every copy: ◐◓◑◒ or braille first is working, ✳ idle, else
+  `unknown` ("running 4m"). Its session comes from `~/.claude/projects/<folder>/<attach id>*.jsonl`.
 - Import issues: GitHub (`gh issue list`) or Linear (GraphQL `viewer.assignedIssues`, not completed or
   canceled, with a personal API key from `$LINEAR_API_KEY` or `data/tasker/linear-key`; Linear
   priority 1–2 → P1, 3 → P2, 4 → P3; due date kept). Issues already imported (same URL) are hidden.

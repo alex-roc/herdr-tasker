@@ -69,6 +69,11 @@ function setup() {
   const p1 = herdr("space.new", { name: "Acme", folder: ROOT, tab: "map services", argv: agent("Map the services across both repos", "idle") });
   // Optionally, a real agent tab of yours shown as a demo task (its real model and effort): --adopt <tab id>.
   const adopt = process.argv.includes("--adopt") ? process.argv[process.argv.indexOf("--adopt") + 1] : null;
+  // Your other agents' tabs go in an archived task, shown nowhere: not tracked as demo tasks,
+  // not in the screenshots.
+  const demoSpaces = new Set([w1.space, a1.space, b1.space, p1.space]);
+  const yours = JSON.parse(sh("herdr-app", ["ls"])).spaces.filter((s) => !demoSpaces.has(s.id))
+    .flatMap((s) => s.tabs.filter((t) => t.id !== adopt && (t.terminals ?? []).some((x) => x.app || x.status)).map((t) => t.id));
   writeFileSync(STATE, JSON.stringify({ spaces: [w1.space, a1.space, b1.space, p1.space] }));
 
   mkdirSync(dirname(FILE), { recursive: true });
@@ -81,7 +86,7 @@ function setup() {
   const data = {
     version: 1,
     // No reminders: a demo isn't the time for notifications.
-    settings: { wip: 3, stale_days: 3, agent: "claude", usage: false, reminders: false },
+    settings: { wip: 3, stale_days: 3, agent: "claude", usage: false, reminders: false, revive: false, track: true },
     projects: [
       { id: "acme", name: "Acme", color: "ansi4", repos: [web, api] },
       { id: "book", name: "Handbook", color: "ansi5", repos: [book] },
@@ -106,6 +111,7 @@ function setup() {
       task({ title: "Ship the v1.4 changelog", project: "book", repo: book, status: "done", done_at: now - 2 * 3600000 }),
       task({ title: "Rotate the API keys", project: "acme", repo: api, status: "done", done_at: now - 2 * DAY }),
       ...(adopt ? [task({ title: "Polish the README", project: "book", repo: book, status: "doing", next_step: "Add a quick start", tabs: [adopt], agent_ms: 38 * 60000 })] : []),
+      ...(yours.length ? [task({ title: "Your own tabs (hidden in the demo)", status: "done", archived: true, tabs: yours })] : []),
     ],
   };
   writeFileSync(FILE, JSON.stringify(data, null, 1) + "\n");

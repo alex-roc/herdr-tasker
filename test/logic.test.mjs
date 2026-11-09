@@ -213,6 +213,15 @@ test("launch a task of the whole project: in the folder above its repositories, 
   assert.match(H.runs.at(-1)[1].task, /- ~\/dev\/web \(this task's\)/);
 });
 
+test("a project with no repositories yet: its terminal opens in the home folder, in its own space", async () => {
+  world({ projects: [{ id: "pe", name: "Empty", color: "ansi2", repos: [] }] });
+  const s = new Store();
+  await s.load();
+  openInProject(s.project("pe"));
+  assert.deepEqual(H.runs.at(-1), ["space.new", { name: "Empty", folder: H.home }]);
+  assert.equal(H.shared["tasker.pending"].at(-1).project, "pe");
+});
+
 test("a project's terminal: its own space above the repositories, shown at the project's level", async () => {
   world();
   const s = new Store();
@@ -471,6 +480,165 @@ test("reminders off: nothing is sent", async () => {
   v.render(cx());
   await settle();
   assert.equal(H.notes.length, 0);
+});
+
+test("an agent that reports no state (claude attach) is still an agent, its state from its title", () => {
+  world();
+  // t6's pane runs Claude Code attached to its background session: no status, not in agents().
+  const p6 = H.panes.find((p) => p.terminal === "t6");
+  p6.app = "claude-code";
+  p6.program = { key: "claude", name: "Claude Code", agent: false, shell: false };
+  const data = parse(H.files.get(FILE()));
+  const w = build({ data, sp: H.spaces, ps: H.panes, ag: H.agents, ts: H.terminals, repos: new RepoCache(), h: H.home });
+  const u = w.untracked.find((x) => x.tab === "tb6");
+  assert.equal(u.agents.length, 1);
+  assert.equal(u.agents[0].status, "unknown");
+  assert.ok(nowView(w, data).untrackedIdle.some((x) => x.tab === "tb6"), "shown in Now, under Not in a task");
+  // Its title tells working (a spinner first) from idle (✳).
+  const t6 = H.terminals.find((t) => t.address === "t6");
+  t6.title = "◑ Fix the parser";
+  const ww = build({ data, sp: H.spaces, ps: H.panes, ag: H.agents, ts: H.terminals, repos: new RepoCache(), h: H.home });
+  assert.equal(ww.untracked.find((x) => x.tab === "tb6").top, "working");
+  assert.ok(nowView(ww, data).untrackedWorking.some((x) => x.tab === "tb6"), "in Working");
+  t6.title = "✳ Fix the parser";
+  const wi = build({ data, sp: H.spaces, ps: H.panes, ag: H.agents, ts: H.terminals, repos: new RepoCache(), h: H.home });
+  assert.equal(wi.untracked.find((x) => x.tab === "tb6").top, "idle");
+  delete t6.title;
+  // A shell whose report lingers from an agent that quit is no agent.
+  p6.program = { key: "shell", name: "zsh", agent: false, shell: true };
+  const w2 = build({ data, sp: H.spaces, ps: H.panes, ag: H.agents, ts: H.terminals, repos: new RepoCache(), h: H.home });
+  assert.equal(w2.untracked.find((x) => x.tab === "tb6").agents.length, 0);
+});
+
+test("an agent's state from its title as the core has it (Herdr strips the mark for mods)", async () => {
+  world();
+  const p6 = H.panes.find((p) => p.terminal === "t6");
+  p6.program = { key: "claude", name: "Claude Code", agent: false, shell: false };
+  H.hc = (args) => (args[0] === "get" && args[1] === "t6" ? { code: 0, stdout: JSON.stringify({ title: "◐ Fix the parser" }) } : { code: 0, stdout: "" });
+  H.props = { role: "sidebar" };
+  const v = new Tasker();
+  v.init(H.props, cx());
+  await until(() => v.store.loaded);
+  v.render(cx());
+  await settle();
+  assert.equal(H.shared["tasker.titles"] != null, true, "a change redraws every copy");
+  v.render(cx());
+  assert.equal(v.world.untracked.find((x) => x.tab === "tb6").top, "working");
+  // Looked again within a few seconds: not asked again.
+  const n = H.hcLog.filter((a) => a[0] === "get").length;
+  v.render(cx());
+  await settle();
+  assert.equal(H.hcLog.filter((a) => a[0] === "get").length, n);
+});
+
+test("every agent's tab a task: light ones follow their agent, vanish with their tab, and become yours once you touch them", async () => {
+  world({ settings: { track: true } });
+  H.props = { role: "sidebar" };
+  const v = new Tasker();
+  v.init(H.props, cx());
+  await until(() => v.store.loaded);
+  v.render(cx());
+  await settle();
+  await v.store.load();
+  const light = () => v.store.data.tasks.filter((t) => t.auto);
+  // tb4's agent (done) had no task: now a light one, in Review; shells (tb3, tb6) aren't tasks.
+  assert.deepEqual(light().map((t) => [t.tabs[0], t.status]), [["tb4", "review"]]);
+  const id = light()[0].id;
+  // Its name follows its agent's.
+  H.agents.find((a) => a.address === "t4").title = "Spike the cache";
+  H.terminals.find((t) => t.address === "t4").title = "Spike the cache";
+  v.render(cx());
+  await settle();
+  assert.equal(v.store.task(id).title, "Spike the cache");
+  // Its tab closes: gone a minute later (not at once: Herdr may be bringing spaces back).
+  H.spaces[0].tabs = H.spaces[0].tabs.filter((t) => t.id !== "tb4");
+  H.agents = H.agents.filter((a) => a.address !== "t4");
+  v.render(cx());
+  await settle();
+  assert.ok(v.store.task(id), "still there right after");
+  globalThis.__tasker.books.info.gone[id] -= 61000;
+  v.render(cx());
+  await settle();
+  assert.equal(v.store.task(id), null, "gone");
+});
+
+test("a light task you touch is yours: it keeps its name and stays when its tab closes", async () => {
+  world({ settings: { track: true } });
+  H.props = { role: "sidebar" };
+  const v = new Tasker();
+  v.init(H.props, cx());
+  await until(() => v.store.loaded);
+  v.render(cx());
+  await settle();
+  await v.store.load();
+  const id = v.store.data.tasks.find((t) => t.auto).id;
+  // Priority set from the list's keys: kept.
+  H.shared["tasker.selected"] = id;
+  v.command("p1", cx());
+  await settle();
+  assert.equal(v.store.task(id).auto, undefined);
+  H.spaces[0].tabs = H.spaces[0].tabs.filter((t) => t.id !== "tb4");
+  H.agents = H.agents.filter((a) => a.address !== "t4");
+  v.render(cx());
+  await settle();
+  assert.ok(!globalThis.__tasker.books.info.gone?.[id], "not counted down");
+  assert.ok(v.store.task(id), "still there");
+});
+
+test("a tab whose task you deleted isn't taken again by itself", async () => {
+  world({ settings: { track: true }, tasks: [task({ id: "gone1", title: "Old", status: "next", tabs: ["tb4"], deleted: true })] });
+  H.props = { role: "sidebar" };
+  const v = new Tasker();
+  v.init(H.props, cx());
+  await until(() => v.store.loaded);
+  v.render(cx());
+  await settle();
+  await v.store.load();
+  assert.ok(!v.store.data.tasks.some((t) => t.auto));
+  assert.ok(v.world.untracked.some((u) => u.tab === "tb4"), "still under Not in a task, with Make task");
+});
+
+test("agents back after a restart: a terminal back as a fresh shell gets its conversation resumed, once", async () => {
+  world();
+  const { Revive, FILE: REVIVE } = await import("../mods/tasker/lib/revive.js");
+  const sent = [];
+  const realExec = H.exec;
+  H.exec = (cmd, args, opts) => (cmd === "env" ? (sent.push(args), { code: 0, stdout: "" }) : realExec(cmd, args, opts));
+  const info = { get: (a) => (a === "t5" ? { app: "claude", session: "sess-1", cwd: "/home/me/dev/app", model: "claude-opus-5-5" } : a === "t6" ? { app: "claude", session: "empty", cwd: "/home/me" } : null) };
+  const term = (pid, fgPid, agent, tab = "tbR") => ({ address: "t5", state: "live", pid, labels: { "herdr.tab": tab },
+    foreground: { pid: fgPid, argv: agent ? ["claude"] : ["/bin/zsh", "-l"], cwd: "/home/me/dev/app" }, program: { agent } });
+  const r = new Revive();
+  const c = cx();
+  r.step(c, [], info);
+  await settle();
+  // An agent at work: remembered (one without a transcript, t6, isn't).
+  const t6 = { ...term(70, 71, true), address: "t6" };
+  r.step(c, [term(10, 11, true), t6], info);
+  await settle();
+  const saved = JSON.parse(H.files.get(REVIVE()));
+  assert.equal(saved.t5.id, "sess-1");
+  assert.ok(!saved.t6, "an empty conversation can't resume");
+  // Right after a crash the old pid lingers with nothing in front: not "quit by hand".
+  r.step(c, [term(10, null, false)], info);
+  // Back as a fresh shell (another pid): the resume is typed, once, without hc's "from" wrapper.
+  H.notes.length = 0;
+  r.step(c, [term(20, 20, false)], info);
+  r.step(c, [term(20, 20, false)], info);
+  await settle();
+  assert.equal(sent.length, 1);
+  assert.deepEqual(sent[0], ["-u", "HC_TERMINAL_ID", "hc", "send", "t5", "cd '/home/me/dev/app' && claude --resume sess-1"]);
+  assert.match(H.notes[0].title, /agent is back/);
+  // Quit by hand (the same shell in front for a while): forgotten, so a later crash types nothing.
+  r.c.recs.t5.quit = Date.now() - 20000;
+  r.step(c, [term(20, 20, false)], info);
+  assert.ok(!r.c.recs.t5);
+  // An address reused by a terminal in another tab gets nothing.
+  r.c.recs.t5 = { pid: 30, tab: "tbR", app: "claude", id: "sess-1", cwd: "/x", at: Date.now() };
+  r.step(c, [term(40, 40, false, "tbOther")], info);
+  await settle();
+  assert.equal(sent.length, 1);
+  assert.ok(!r.c.recs.t5);
+  H.exec = realExec;
 });
 
 test("detail: looks again without redrawing unless something changed, and skips the screen in view", async () => {

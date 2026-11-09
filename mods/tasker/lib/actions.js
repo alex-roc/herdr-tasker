@@ -51,9 +51,11 @@ export function withDirs(argv, dirs) {
 
 // Where project-wide work runs: the nearest folder holding all its repositories (~/dev),
 // above them as the project is; `others`: repositories outside it, to add (none, usually).
+// A project with no repositories yet works in the home folder.
 export function projectPlace(project, h = home()) {
-  const repos = (project?.repos ?? []).map((r) => untilde(r, h));
-  if (!repos.length) return null;
+  if (!project) return null;
+  const repos = (project.repos ?? []).map((r) => untilde(r, h));
+  if (!repos.length) return { folder: h, others: [], all: [] };
   const folder = commonDir(repos) ?? repos[0];
   const inside = (r) => r === folder || r.startsWith(folder + "/");
   return { folder, others: repos.filter((r) => !inside(r)), all: repos };
@@ -195,10 +197,18 @@ export async function link(store, taskId, tabId, ts) {
 
 // Makes a task of a tab that belongs to none (`u` from the world's untracked list),
 // tied to it. Status: as given, else from what its agent is doing.
-export async function adopt(store, u, { status, title } = {}) {
+// `auto`: made by tasker itself (a light task, see sidebar.js's tracking). A tab opened for a
+// whole project goes to that project, with no repository.
+export async function adopt(store, u, { status, title, auto = false } = {}) {
   const st = status ?? (u.top === "working" || u.top === "blocked" ? "doing" : u.top === "done" ? "review" : "next");
   let id = null;
-  await store.update((d) => { id = newTask(d, { title: title ?? untrackedName(u), repo: u.where.key, status: st, tabs: [u.tab] }).id; });
+  const where = u.project ? { project: u.project, repo: null } : { repo: u.where.key };
+  await store.update((d) => {
+    // One task per tab (two looks at once, two lists). A tab whose task was deleted isn't
+    // taken again by itself: only by the person (Make task).
+    if (d.tasks.some((t) => (t.tabs ?? []).includes(u.tab) && (!t.deleted || auto))) return false;
+    id = newTask(d, { title: title ?? untrackedName(u), ...where, status: st, tabs: [u.tab], ...(auto ? { auto: true } : {}) }).id;
+  });
   if (id) await link(store, id, u.tab, terminals());
   return id;
 }

@@ -4,14 +4,15 @@
 
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { theme, run, shared, setShared, setAgentOrder, home, spaces, terminals, panes, nextCommand, props, notify } from "herdr";
+import { theme, run, shared, setShared, setAgentOrder, home, spaces, terminals, panes, nextCommand, props, notify, window } from "herdr";
 import { S } from "./strings.js";
-import { setStatus } from "./lib/store.js";
-import { nowView, projectTree, untrackedName } from "./lib/world.js";
+import { setStatus, kept } from "./lib/store.js";
+import { nowView, projectTree, untrackedName, agentTitle } from "./lib/world.js";
 import { arrived, link, openHere, adopt, openInProject, labelProject, openBoard } from "./lib/actions.js";
 import { RANK, shortModel, kilo, base, tilde, today, isLater, laterLabel } from "./lib/util.js";
 import { taskMark, prioChip, dueChip, agentMark, sectionHeader, iconButton, programIcon, CHEVRON, icon, agentFor, shownLists } from "./lib/ui.js";
 import { sharedCache } from "./lib/cache.js";
+import { Revive } from "./lib/revive.js";
 import { openDialog } from "./lib/open.js";
 import { projectColor } from "./dialogs.js";
 
@@ -27,9 +28,12 @@ export const Sidebar = {
     // Bookkeeping state lives where every list sees it: with two lists on screen,
     // whichever draws first records a change, and the other finds it recorded.
     this.books = sharedCache("books").info; // prevTop: task id -> top state; workSince: address -> ms
+    this.revive = new Revive(); // agents back after a restart (shared state)
     this.handle = cx.focus_handle();
     this.order = [];
     cx.timer.every(30000, (cx) => cx.notify()); // durations
+    // Agents that report no state: their titles say it (read without drawing; a change redraws).
+    cx.timer.every(3000, (cx) => { if (this.quiet?.length && window()?.active) this.titles.refresh(cx, this.quiet); });
     cx.spawn(async (cx) => {
       for (;;) {
         const c = await nextCommandSafe();
@@ -100,7 +104,7 @@ export const Sidebar = {
     const i = this.order.indexOf(sel);
     const task = this.store.task(sel);
     const move = (d) => { const id = this.order[Math.max(0, Math.min(this.order.length - 1, (i < 0 ? -d : i) + d))]; if (id) setShared("tasker.selected", id); };
-    const upd = (fn) => task && cx.spawn(async () => this.store.update((d) => { const x = d.tasks.find((y) => y.id === task.id); if (!x) return false; fn(x); x.updated = Date.now(); }));
+    const upd = (fn) => task && cx.spawn(async () => this.store.update((d) => { const x = d.tasks.find((y) => y.id === task.id); if (!x) return false; fn(kept(x)); x.updated = Date.now(); }));
     // "select:<task id>" (herdr-app do tasker.select:<id>): show that task, for scripts and agents.
     // Asked for by a script or a notification: the panel opens for it.
     if (c.startsWith("select:")) {
@@ -212,8 +216,36 @@ export const Sidebar = {
       }
       // Herdr itself notifies when an agent needs you or finishes: no second toast here.
     }
+    this.follow(cx, w, ops, now);
     this.remind(w, ops, now);
+    this.revive.step(cx, [...w.termBy.values()], this.info, this.store.data.settings.revive !== false);
     if (ops.length) cx.spawn(async () => this.store.update((d) => { for (const op of ops) op(d); }));
+  },
+
+  // Every agent's tab a task (setting `track`): a light one (`auto`) from its start, named after
+  // its agent and gone a minute after its tab closes, until the person changes anything on it.
+  follow(cx, w, ops, now) {
+    if (this.store.data.settings.track === false) return;
+    const adopting = (this.books.adopting ??= {});
+    for (const u of w.untracked) {
+      if (!u.agents.length || adopting[u.tab]) continue;
+      adopting[u.tab] = now;
+      cx.spawn(async () => { try { await adopt(this.store, u, { auto: true }); } finally { delete adopting[u.tab]; } });
+    }
+    const gone = (this.books.gone ??= {});
+    const anySpace = w.spaces.length > 0;
+    for (const x of w.tasks) {
+      if (!x.t.auto || x.t.deleted) { delete gone[x.t.id]; continue; }
+      const name = x.agents.map(agentTitle).find(Boolean);
+      if (name && name !== x.t.title) ops.push((d) => { const y = d.tasks.find((z) => z.id === x.t.id); if (y?.auto) y.title = name; });
+      // Its tab closed (and not because Herdr is still bringing spaces back, or a machine is away).
+      if (x.live.length || !anySpace || x.tabs.some((tab) => tab.includes("/"))) { delete gone[x.t.id]; continue; }
+      gone[x.t.id] ??= now;
+      if (now - gone[x.t.id] > 60000) {
+        delete gone[x.t.id];
+        ops.push((d) => { d.tasks = d.tasks.filter((y) => !(y.id === x.t.id && y.auto)); });
+      }
+    }
   },
 
   // Tasks put off whose day came: back in Now, with a notification. And once a day,
@@ -242,6 +274,23 @@ export const Sidebar = {
       ops.push((d) => { const y = d.tasks.find((z) => z.id === t.id); if (y) y.reminded = day; });
     }
     tell(S.dueTitle(due.some((t) => t.due < day), due.length), due, due.some((t) => t.due < day) ? "warning" : "info");
+  },
+
+  // A project dropped on another: it takes that one's place (the order of tasks.json, which
+  // the board's pills and the task form follow too).
+  dropProject(cx, target) {
+    const from = this.dragProject;
+    this.dragProject = null;
+    this.dragOver = null;
+    if (!from || from === target) return;
+    cx.stop_propagation();
+    cx.spawn(async () => this.store.update((d) => {
+      const i = d.projects.findIndex((x) => x.id === from), j = d.projects.findIndex((x) => x.id === target);
+      if (i < 0 || j < 0) return false;
+      const [moved] = d.projects.splice(i, 1);
+      d.projects.splice(j, 0, moved);
+    }));
+    cx.notify();
   },
 
   // ── Rows ────────────────────────────────────────────────────────────────
@@ -376,17 +425,28 @@ export const Sidebar = {
       const id = `p:${p?.id ?? "-"}`;
       const open = !this.folded.has(id);
       // Its actions show while the pointer is on it (board, terminal, task, menu); else its count.
-      const acts = Boolean(p) && this.hovered === id;
+      const acts = Boolean(p) && this.hovered === id && !this.dragProject;
+      // Dragged onto another project: a line shows where it lands (above when moving up).
+      const order = this.store.data.projects.map((y) => y.id);
+      const dragging = Boolean(p) && this.dragProject && this.dragOver === p.id && this.dragProject !== p.id;
+      const below = dragging && order.indexOf(this.dragProject) < order.indexOf(p.id);
       rows.push(h_flex().id(id).px(8).pt(8).h(32).flex_none().gap(7).items_center().cursor_pointer()
+        .when(Boolean(p) && this.dragProject === p.id && Boolean(this.dragOver) && this.dragOver !== p.id, (el) => el.opacity(0.45))
+        .when(dragging && !below, (el) => el.border_t(2).border_color(t.accent))
+        .when(dragging && below, (el) => el.border_b(2).border_color(t.accent))
         .on_click((_e, cx) => this.fold(id, cx))
         .on_mouse_down("right", (_e, cx) => { if (p) { cx.stop_propagation(); openDialog("project-menu", { project: p.id }); } })
+        .when(Boolean(p), (el) => el
+          .on_mouse_down("left", () => { this.dragProject = p.id; this.dragOver = null; })
+          .on_mouse_move((_e, cx) => { if (this.dragProject && this.dragOver !== p.id) { this.dragOver = p.id; cx.notify(); } })
+          .on_mouse_up("left", (_e, cx) => this.dropProject(cx, p.id)))
         .on_hover((on, cx) => { this.hovered = on ? id : this.hovered === id ? null : this.hovered; cx.notify(); })
         .child(div().size(9).rounded(3).flex_none().bg(p ? projectColor(p) : t.dim))
         .child(div().flex_1().min_w(0).truncate().text_size(12).font_semibold().text_color(p ? t.foreground : t.dim).child(p?.name ?? S.noProject))
         .when(!open && Boolean(x.top), (el) => el.child(agentMark(t, x.top)))
         .when(acts, (el) => el
           .child(iconButton(t, `pboard-${id}`, "square-kanban", S.boardOf(p.name), () => openBoard(p)))
-          .when(Boolean(p.repos?.length), (el) => el.child(iconButton(t, `pterm-${id}`, "square-terminal", S.projectTerminalHint, () => openInProject(p))))
+          .child(iconButton(t, `pterm-${id}`, "square-terminal", S.projectTerminalHint, () => openInProject(p)))
           .child(iconButton(t, `padd-${id}`, "plus", S.projectTaskHint, () => this.openTaskForm({ project: p.id })))
           .child(iconButton(t, `pmore-${id}`, "ellipsis", S.projectMenu, () => openDialog("project-menu", { project: p.id }))))
         .when(!acts, (el) => el.child(div().text_size(11).text_color(t.dim).child(String(x.count))))
@@ -423,6 +483,8 @@ export const Sidebar = {
       .bg(view === id ? t.selected : t.chrome).text_color(view === id ? t.foreground : t.muted).font_medium()
       .hover((s) => s.bg(t.hover)).on_click(() => setShared("tasker.view", id)).child(icon(id === "now" ? "zap" : "folder-tree", 13)).child(label);
     return v_flex().id("tasker-sidebar").track_focus(this.handle).on_key_down((e, cx) => this.key(e, cx))
+      // Released anywhere but on a project: the drag is off.
+      .on_mouse_up("left", (_e, cx) => { if (this.dragProject) { this.dragProject = null; this.dragOver = null; cx.notify(); } })
       .size_full().min_h(0).bg(t.chrome).text_size(12.8).text_color(t.foreground)
       .child(h_flex().px(10).h(40).flex_none().gap(4).items_center().border_b(1).border_color(t.border)
         .when(!this.fixedView, (el) => el.child(tabBtn("now", S.now)).child(tabBtn("projects", S.projects)))

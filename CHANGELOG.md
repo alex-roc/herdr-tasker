@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.4.0 — 2026-11-08
+
+### New
+- **Tasks or terminals, the same flow**: every agent's tab is a task from its start, a light one
+  named after what the agent calls its work, following it (Doing, Review) on the list, the board and
+  in Projects. Change anything on it and it's yours; untouched, it goes away with its tab. Work only
+  with terminals and still get the board, Later, reminders and the resume after a restart. *Track
+  agents automatically* in the settings (on by default) turns it off.
+- **Reorder projects** by dragging one's row onto another in Projects; the board's pills and the
+  task form follow the same order.
+- A project with no repositories yet has its terminal, agents and project tasks too, in its own
+  space in the home folder.
+- **Agents after a restart**: Herdr brings terminals back as shells after a reboot; tasker types
+  each one's Claude Code or Codex resume into it (`cd <folder> && claude --resume <id>`), with a
+  notification. Quitting an agent yourself isn't undone. On by default, off in the settings.
+
+### Changed
+- New screenshots for the README and the website (light tasks, the new settings); the board's *No
+  task* lane only shows with tracking off. The settings dialog fits every option.
+
+### Fixed
+- Claude Code attached to its background session (`claude attach`) reports no state to Herdr, so its
+  tab showed nowhere in Now: an agent program in front counts as an agent, working or idle as its
+  terminal's title says, with its model and context read from its transcript.
+
 ## 1.3.0 — 2026-11-08
 
 ### New

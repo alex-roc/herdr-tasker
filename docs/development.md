@@ -73,8 +73,11 @@ through the Program Status Protocol, as real agents do:
 working and a finished agent, a task to resume, one put off and one *someday*, a task and a terminal
 for the whole Acme project (its own space, `~/tasker-demo`), and reminders off (no toasts in shots).
 
-Screenshots, with the window at 2240×1230 and the sidebar at 330px (`layout.resize {id: "sidebar",
-px: 330}`); `herdr-app shot` gives a 2× frame (4480×2460):
+Screenshots, with the window maximized (`herdr-app do window.maximize`, again to put it back: a window
+in split view is half as wide) and the sidebar at 330px (`layout.resize {id: "sidebar", px: 330}`);
+`herdr-app shot` gives a 2× frame (about 4440×2420). The demo puts your own agents' tabs in an archived
+task, so they're neither tracked as light tasks nor drawn; its agents' addresses change every run
+(find one by its tab's name in `herdr-app ls`).
 
 - Bring the window to the front first (`osascript -e 'tell application "Herdr" to activate'`) or the
   frame is stale; two identical shots mean it was. Close a stray popup with `herdr-app do overlay.close`.
@@ -87,6 +90,16 @@ px: 330}`); `herdr-app shot` gives a 2× frame (4480×2460):
   after `--clean`.
 
 ## Things that tripped the build up
+
+- A lost terminal (reboot, core crash, `kill -9` of its shell: try that on a test space) comes back
+  at the same address, in the same tab, with the same `created_ms` and another `pid`, a shell in
+  front. Herdr never runs its program again: `lib/revive.js` types the resume.
+- `hc send` from inside a terminal (with `HC_TERMINAL_ID` set) wraps the text as a message from that
+  agent, `<hc from="t11">…</hc>`: a shell can't run it. Clear the variable to type a command.
+- Herdr's `app` on a pane can linger after its agent quits (a zsh still says `claude-code`), and
+  `claude attach` reports no state with `program.agent: false` (key `claude`): decide by the
+  program in front, a shell being no agent. Claude Code marks its title (◐◑ working, ✳ idle), but
+  `terminals()` and `panes()` hand mods the title without the mark: `hc get` has it.
 
 - Herdr doesn't hot-reload a mod folder that is a symlink: install by copying.
 - `child(null)` throws in gpui-kit, and so does using an element twice. `false` is fine.

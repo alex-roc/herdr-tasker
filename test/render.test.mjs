@@ -237,6 +237,26 @@ test("a project's row shows its actions while the pointer is on it", async () =>
   assert.ok(["pboard-p:pa", "pterm-p:pa", "padd-p:pa", "pmore-p:pa"].every((i) => ids().includes(i)));
 });
 
+test("projects reorder by dragging one onto another; a plain click still folds", async () => {
+  const { view } = await mount({ role: "sidebar" });
+  H.shared["tasker.view"] = "projects";
+  const row = (id) => walk(render(view).tree).find((n) => n.id === id);
+  row("p:pa").handlers["on_mouse_down:left"]({}, cx());
+  row("p:pw").handlers.on_mouse_move({}, cx());
+  assert.ok(row("p:pw").calls.some(([m]) => m === "border_b"), "a line below Website: App lands after it");
+  const c = cx();
+  row("p:pw").handlers["on_mouse_up:left"]({}, c);
+  await settle();
+  assert.deepEqual(JSON.parse(H.files.get(FILE())).projects.map((p) => p.id), ["pw", "pa"]);
+  assert.ok(c.stopped > 0, "the drop isn't also a click");
+  // Press and release on the same project: nothing moves.
+  row("p:pa").handlers["on_mouse_down:left"]({}, cx());
+  row("p:pa").handlers["on_mouse_up:left"]({}, cx());
+  await settle();
+  assert.deepEqual(JSON.parse(H.files.get(FILE())).projects.map((p) => p.id), ["pw", "pa"]);
+  assert.equal(view.dragProject, null);
+});
+
 test("task form: due accepts words and shortcuts", async () => {
   const { view } = await mount({ dialog: "task", overlay: "ov1" });
   const c = cx();

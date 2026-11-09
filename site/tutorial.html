@@ -69,10 +69,10 @@ cd herdr-tasker
       <section class="step" id="project">
         <h2>Make a project</h2>
         <div class="side-by-side">
-          <figure><img src="img/projects.png" width="660" height="1638" alt="The Projects view: the Acme project with two repositories, their branches, changes and tasks." loading="lazy"></figure>
+          <figure><img src="img/projects.png" width="660" height="1590" alt="The Projects view: the Acme project with two repositories, their branches, changes and tasks." loading="lazy"></figure>
           <div>
             <p>Press <kbd>tab</kbd> in the list (or click <strong>Projects</strong>) to see the outline. Every repository open in Herdr shows up, under <em>No project</em> at first.</p>
-            <p>Click the folder button in the header to make a project: give it a name and a color, and tick the repositories that belong to it. A repository that isn't open in Herdr comes in with <strong>Add folder…</strong>. A project's own <strong>›_</strong>, <strong>+</strong> and <strong>⋯</strong> open a terminal, a task or an agent for the whole project: they open in the project's own space, in the folder holding all its repositories (<code>~/dev</code>), and show at the project's level, above its repositories; the agent reaches every repository and is told which they are. <strong>⋯ → Close project</strong> closes the project's space and every space of its repositories (a repository's menu closes just its own). You can also right-click a repository and pick a project.</p>
+            <p>Click the folder button in the header to make a project: give it a name and a color, and tick the repositories that belong to it. A repository that isn't open in Herdr comes in with <strong>Add folder…</strong>. A project's own <strong>›_</strong>, <strong>+</strong> and <strong>⋯</strong> open a terminal, a task or an agent for the whole project: they open in the project's own space, in the folder holding all its repositories (<code>~/dev</code>; your home folder while it has none), and show at the project's level, above its repositories; the agent reaches every repository and is told which they are. <strong>⋯ → Close project</strong> closes the project's space and every space of its repositories (a repository's menu closes just its own). You can also right-click a repository and pick a project. Drag a project's row onto another to change their order.</p>
             <p>Each repository row shows its branch, <code>↑2</code> for commits not pushed and <code>•3</code> for uncommitted changes. Hover them for the words.</p>
           </div>
         </div>
@@ -104,7 +104,7 @@ cd herdr-tasker
         <p>That's the model, the reasoning effort, how much context it holds, and how long it has been at it. tasker reads these from Claude Code's and Codex's own logs; other agents show their state and time.</p>
         <h3>In its own worktree</h3>
         <p>Press <kbd>w</kbd> (or <strong>Start in a worktree</strong>) to keep the work apart from your checkout: tasker creates the branch <code>task/&lt;name&gt;</code> in <code>~/.herdr/worktrees/&lt;repo&gt;/&lt;name&gt;</code> first and starts the agent there. Herdr's own worktree tools see it too.</p>
-        <div class="note" style="--c:var(--working)"><p>Started an agent before tasker knew about it? It shows up in the list (under <strong>Not in a task</strong> when it's idle) with a <strong>Make task</strong> button. Right-click it for <strong>Add to task…</strong> to tie it to a task you already have.</p></div>
+        <div class="note" style="--c:var(--working)"><p>Rather work with terminals? Start an agent anywhere: its tab is a task already, a light one named after what the agent calls its work, moving with it like any other. Touch it (a priority, a note, Later, a drag on the board) and it's yours; leave it, and it goes away with its tab. With <em>Track agents automatically</em> off in the settings, an agent in no task waits under <strong>Not in a task</strong> with a <strong>Make task</strong> button, and <strong>Add to task…</strong> in its menu.</p></div>
       </section>
 
       <section class="step" id="answer">
@@ -154,14 +154,13 @@ cd herdr-tasker
       <section class="step" id="board">
         <h2>Plan on the board</h2>
         <p>Press <kbd>cmd</kbd> <kbd>shift</kbd> <kbd>b</kbd> or the board button at the top of Now to open the board of every project as a tab.</p>
-        <figure><img src="img/board.png" width="2240" height="1230" alt="The board: a No task lane and six columns with task cards; cards put off with Later are dimmed." loading="lazy"><figcaption>A card's border turns red when its agent needs you. Done keeps the last seven days.</figcaption></figure>
+        <figure><img src="img/board.png" width="2220" height="1210" alt="The board: six columns with task cards, agents started from a terminal among them; cards put off with Later are dimmed." loading="lazy"><figcaption>A card's border turns red when its agent needs you. Done keeps the last seven days.</figcaption></figure>
         <ul>
           <li>Drag a card to another column to change its status; click it to open its detail.</li>
           <li>Every project has its own board, in a tab of its own with only its tasks and agents. The pills at the top (All, then each project) go from one board to another; in Projects, a project's board button (shown while the pointer is on its row) opens it too.</li>
           <li>Doing shows how many tasks are in progress against your limit, and turns amber when you're over it.</li>
-          <li>Agents in no task wait in the <strong>No task</strong> lane on the left: drag one onto a column to make it a task with that status.</li>
+          <li>Agents started from a terminal are on the board already, as light tasks. With <em>Track agents automatically</em> off, they wait in a <strong>No task</strong> lane on the left instead: drag one onto a column to make it a task with that status.</li>
         </ul>
-        <figure><img src="img/board-lane.png" width="1580" height="750" alt="The No task lane with one agent, next to the Inbox and Next columns." loading="lazy"></figure>
       </section>
 
       <section class="step" id="keys">
@@ -184,12 +183,14 @@ cd herdr-tasker
         <p>Anywhere in the layout: <kbd>cmd</kbd> <kbd>k</kbd> finds a task, <kbd>cmd</kbd> <kbd>shift</kbd> <kbd>n</kbd> makes one, <kbd>cmd</kbd> <kbd>i</kbd> shows or hides the detail.</p>
         <figure class="mid"><img src="img/jump.png" width="1080" height="880" alt="Find a task: a search box over the list of tasks, open ones first." loading="lazy"><figcaption>Find a task searches titles, repositories, next steps, projects and issue numbers. Arrows move, enter opens.</figcaption></figure>
         <div class="side-by-side">
-          <figure><img src="img/settings.png" width="960" height="1400" alt="Tasker settings: Now and Projects as tabs or stacked, Doing limit, Stalled after, Reminders, Plan usage, and which agent to start." loading="lazy"></figure>
+          <figure><img src="img/settings.png" width="960" height="1880" alt="Tasker settings: Track agents automatically, Now and Projects as tabs or stacked, Doing limit, Stalled after, Agents after a restart, Reminders, Plan usage, and which agent to start." loading="lazy"></figure>
           <div>
             <p>The gear at the right of the status bar opens the settings:</p>
             <ul>
+              <li><strong>Track agents automatically</strong>: every agent's tab is a light task from its start; off, only the tasks you make.</li>
               <li><strong>Now and Projects</strong>: one list with tabs, or <em>stacked</em>, both at once, one above the other (drag the line between them). Stacked, <kbd>tab</kbd> moves between them.</li>
               <li><strong>Doing limit</strong>: how many tasks can be in progress before the status bar warns you.</li>
+              <li><strong>Agents after a restart</strong>: when your computer restarts, Herdr brings every terminal back as a shell; tasker types the agent's resume into each one that had a Claude Code or Codex conversation.</li>
               <li><strong>Reminders</strong>: a notification when a task you put off comes back, and once a day for what's due or late.</li>
               <li><strong>Stalled after</strong>: days without movement before a task shows under <em>Stalled</em>.</li>
               <li><strong>Agent to start</strong>: which of your installed agents <em>Start agent</em> runs.</li>
@@ -198,7 +199,7 @@ cd herdr-tasker
           </div>
         </div>
         <div class="side-by-side">
-          <figure><img src="img/stacked.png" width="660" height="1968" alt="Projects and Now stacked in the sidebar: the Projects outline above, the Now list below." loading="lazy"></figure>
+          <figure><img src="img/stacked.png" width="660" height="1908" alt="Projects and Now stacked in the sidebar: the Projects outline above, the Now list below." loading="lazy"></figure>
           <div>
             <p><strong>Stacked</strong>, the sidebar shows Projects above and Now below, as Herdr's own sidebar shows spaces and agents. Drag the line between them to give either more room; <kbd>tab</kbd> moves the keys from one to the other, and the layout's shortcuts go to Now.</p>
             <p>That's the whole loop. Next, the <a href="examples.html">examples</a> show workflows built on it.</p>

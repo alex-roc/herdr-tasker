@@ -10,7 +10,7 @@ const SIZES = {
   issues: { kind: "dialog", width: 540, height: 460 },
   archive: { kind: "dialog", width: 460, height: 230 },
   "confirm-delete": { kind: "dialog", width: 420, height: 190 },
-  settings: { kind: "dialog", width: 480, height: 700 },
+  settings: { kind: "dialog", width: 480, height: 940 },
   menu: { kind: "popup", width: 270, height: 410 },
   later: { kind: "dialog", width: 420, height: 200 },
   loose: { kind: "popup", width: 240, height: 150 },

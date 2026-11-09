@@ -26,10 +26,6 @@ export function statusColor(t, status) {
   }[status] ?? t.dim;
 }
 
-export function prioColor(t, p) {
-  return p === 1 ? t.ansi1 : p === 2 ? t.ansi3 : t.dim;
-}
-
 // An agent's state as Herdr's agents list draws it.
 export function agentMark(t, status, compact = true) {
   if (status === "working") return svg(SPINNER).size(12).mx(1).flex_none().text_color(t.working).spin(900);
@@ -59,10 +55,6 @@ export function chip(t, text, color, opts = {}) {
   return div().flex_none().px(5).h(16).rounded(4).flex().items_center()
     .bg((color ?? t.dim) + (opts.solid ? "" : "22")).text_size(10).font_semibold()
     .text_color(opts.solid ? t.background : color ?? t.dim).child(text);
-}
-
-export function prioChip(t, p) {
-  return chip(t, S.priorityLabel[p] ?? "P2", prioColor(t, p));
 }
 
 export function dueChip(t, due) {

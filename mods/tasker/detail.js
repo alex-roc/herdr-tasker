@@ -8,7 +8,7 @@ import { setStatus, kept } from "./lib/store.js";
 import { diffStat } from "./lib/git.js";
 import { send, pullRequest, openUrl } from "./lib/actions.js";
 import { RANK, duration, shortModel, kilo, base, untilde, STATUSES, issueLabel, isLater, laterLabel } from "./lib/util.js";
-import { STATUS_ICON, statusIcon, statusColor, prioColor, dueChip, agentMark, button, chip, programIcon, icon, onScreen, agentFor } from "./lib/ui.js";
+import { STATUS_ICON, statusIcon, statusColor, dueChip, agentMark, button, chip, programIcon, icon, onScreen, agentFor } from "./lib/ui.js";
 import { openDialog } from "./lib/open.js";
 
 const LOOK_EVERY = 15000; // screen and diff, while shown and the window is in front
@@ -138,9 +138,6 @@ export const Detail = {
         .on_click((_e, cx) => this.upd(cx, task.id, (y) => setStatus(y, s)))
         .child(icon(STATUS_ICON[s], 13)).when(on, (el) => el.child(S.statusLabel[s]));
     }));
-    const prioRow = h_flex().gap(3).children([1, 2, 3].map((n) => div().id(`dp-${n}`).px(7).h(22).rounded(5).flex().items_center().cursor_pointer()
-      .text_size(11).font_semibold().bg(task.priority === n ? prioColor(t, n) + "2a" : t.chrome).text_color(task.priority === n ? prioColor(t, n) : t.dim)
-      .hover((el) => el.bg(t.hover)).tooltip(S.priorityHint[n]).on_click((_e, cx) => this.upd(cx, task.id, (y) => { y.priority = n; })).child(S.priorityLabel[n])));
 
     const last = task.sessions?.at(-1);
     const actions = h_flex().gap(6).flex_wrap()
@@ -199,7 +196,7 @@ export const Detail = {
         .when(Boolean(task.estimate), (el) => el.child(chip(t, S.estimateChip(task.estimate), t.dim)))
         .when(Boolean(task.issue?.url), (el) => el.child(div().id("d-issue").text_color(t.accent).cursor_pointer().hover((s) => s.opacity(0.8))
           .on_click(() => openUrl(task.issue.url)).child(issueLabel(task.issue)))))
-      .child(v_flex().pt(10).gap(6).child(statusRow).child(prioRow))
+      .child(v_flex().pt(10).gap(6).child(statusRow))
       .child(div().pt(10).child(actions))
       .when(Boolean(task.next_step), (el) => el.child(this.section(t, S.nextStep, div().text_color(t.foreground).child(task.next_step))))
       .when(Boolean(task.notes), (el) => el.child(this.section(t, S.notes, div().text_color(t.muted).child(task.notes))))
@@ -212,10 +209,11 @@ export const Detail = {
         .child(div().child(S.inStateFor(S.statusLabel[task.status], duration(now - lastChange))))
         .when(worked > 0, (el) => el.child(div().child(S.agentWorked(duration(worked)))))
         .child(div().child(S.createdAgo(duration(now - (task.created ?? now)))))))
-      .child(this.section(t, S.activity, ...[...(task.history ?? [])].reverse().slice(0, 12).map((hh) => h_flex().gap(8).text_size(11).text_color(t.muted)
+      // Every status change: only when turned on in the settings ("in Review for 3m" is above).
+      .when(this.store.data.settings.activity === true && Boolean(task.history?.length), (el) => el.child(this.section(t, S.activity, ...[...(task.history ?? [])].reverse().slice(0, 12).map((hh) => h_flex().gap(8).text_size(11).text_color(t.muted)
         .child(statusIcon(t, hh.s, 12))
         .child(div().flex_1().child(S.statusLabel[hh.s] ?? hh.s))
-        .child(div().text_color(t.dim).child(S.ago(duration(now - hh.at)))))));
+        .child(div().text_color(t.dim).child(S.ago(duration(now - hh.at))))))));
     return shell(body);
   },
 };

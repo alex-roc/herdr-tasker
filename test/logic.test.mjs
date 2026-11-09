@@ -5,8 +5,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { H, command } from "herdr";
-import { parseDue, dueLabel, slug, shortModel, byUrgency, duration, parseLater } from "../mods/tasker/lib/util.js";
-import { parse, cleanTask, Store, setStatus } from "../mods/tasker/lib/store.js";
+import { parseDue, dueLabel, slug, shortModel, byRank, reorder, duration, parseLater } from "../mods/tasker/lib/util.js";
+import { parse, cleanTask, Store, setStatus, moveTask, toTop, newTask } from "../mods/tasker/lib/store.js";
 import { build, nowView, projectTree } from "../mods/tasker/lib/world.js";
 import { arrived, launch, openInProject } from "../mods/tasker/lib/actions.js";
 import { AgentInfo } from "../mods/tasker/lib/agentinfo.js";
@@ -51,8 +51,44 @@ test("dueLabel and friends", () => {
   assert.equal(duration(30000), "<1m");
   assert.equal(duration(90 * 60000), "1h 30m");
   assert.equal(duration(3 * 86400000), "3d");
-  const a = { priority: 1, due: null, created: 2 }, b = { priority: 2, due: iso(0), created: 1 };
-  assert.ok(byUrgency(a, b) < 0, "priority first");
+  assert.ok(byRank({ rank: 1, created: 2 }, { rank: 2, created: 1 }) < 0, "the order set first");
+  assert.ok(byRank({ rank: 3, created: 1 }, { rank: 3, created: 2 }) < 0, "then oldest");
+  assert.deepEqual(reorder(["a", "b", "c", "d"], "a", "c"), ["b", "c", "a", "d"], "from above: lands below the target");
+  assert.deepEqual(reorder(["a", "b", "c", "d"], "d", "b"), ["a", "d", "b", "c"], "from below: lands above it");
+  assert.deepEqual(reorder(["b", "c"], "x", "c"), ["b", "x", "c"], "from another list: above it");
+});
+
+test("order: a file from before keeps its order; a task without a place goes last, or first when high", () => {
+  const now = Date.now();
+  const d = parse(JSON.stringify({ tasks: [
+    { id: "low", priority: 3, created: now - 5 }, { id: "high", priority: 1, created: now - 4 },
+    { id: "soon", priority: 2, due: iso(1), created: now - 3 }, { id: "plain", priority: 2, created: now - 6 },
+  ] }));
+  const order = (data) => [...data.tasks].sort(byRank).map((t) => t.id);
+  assert.deepEqual(order(d), ["high", "soon", "plain", "low"], "priority, then due date, then oldest");
+  assert.ok(d.tasks.every((t) => t.priority === undefined && Number.isFinite(t.rank)), "priority isn't kept");
+  // An agent adds two tasks to that file, one high.
+  const raw = JSON.parse(JSON.stringify(d));
+  raw.tasks.push({ id: "agent", title: "Follow-up" }, { id: "urgent", title: "Hotfix", priority: "high" });
+  const e = parse(JSON.stringify(raw));
+  assert.deepEqual(order(e), ["urgent", "high", "soon", "plain", "low", "agent"]);
+  assert.deepEqual(order(parse(JSON.stringify(raw))), order(e), "the same file, the same order");
+  // Dragged: low onto soon (from below: above it); the rest keep their places.
+  assert.ok(moveTask(e, "low", ["urgent", "high", "soon", "plain", "low", "agent"], "soon"));
+  assert.deepEqual(order(e), ["urgent", "high", "low", "soon", "plain", "agent"]);
+  // Only the tasks of the list shown trade places.
+  assert.ok(moveTask(e, "plain", ["high", "plain"], "high"));
+  assert.deepEqual(order(e), ["urgent", "plain", "low", "soon", "high", "agent"]);
+  assert.ok(toTop(e, "agent"));
+  assert.equal(order(e)[0], "agent");
+  assert.equal(toTop(e, "agent"), false, "already first");
+  const t = newTask(e, { title: "New" });
+  assert.equal(order(e).at(-1), t.id, "a new task goes last");
+  // Two tasks in one place (copied by hand): sorted out before a move.
+  e.tasks.find((x) => x.id === "soon").rank = e.tasks.find((x) => x.id === "low").rank;
+  assert.ok(moveTask(e, "soon", ["low", "soon"], "low"));
+  assert.deepEqual(order(e).filter((x) => ["low", "soon"].includes(x)), ["soon", "low"]);
+  assert.equal(new Set(e.tasks.map((x) => x.rank)).size, e.tasks.length);
 });
 
 test("what's read is cleaned: odd values, missing fields, junk entries", () => {
@@ -69,7 +105,8 @@ test("what's read is cleaned: odd values, missing fields, junk entries", () => {
   const t = d.tasks[0];
   assert.equal(t.title, "7");
   assert.equal(t.status, "inbox");
-  assert.equal(t.priority, 1);
+  assert.equal(t.priority, undefined);
+  assert.equal(t.rank, 0, "high: before everything");
   assert.equal(t.due, null, "words aren't kept in the file: they'd move every day");
   assert.deepEqual(t.tabs, ["tb1"]);
   assert.deepEqual(t.history, [{ s: "doing", at: 1 }]);
@@ -143,7 +180,7 @@ test("Now: what needs you first, each task once", () => {
   assert.deepEqual(ids(v.review), ["review1"]);
   assert.deepEqual(ids(v.working).sort(), ["doing1", "remote1"]);
   assert.deepEqual(ids(v.stalled), ["wait1"]);
-  assert.deepEqual(ids(v.next), ["next2", "next1"], "P1 before P3");
+  assert.deepEqual(ids(v.next), ["next2", "next1"], "a file with priorities keeps their order");
   assert.deepEqual(ids(v.inbox).sort(), ["inbox1", "inbox2"]);
   const all = [...v.needs, ...v.review, ...v.working, ...v.stalled, ...v.next, ...v.inbox].map((x) => x.t.id);
   assert.equal(new Set(all).size, all.length);
@@ -157,8 +194,8 @@ test("Projects: repos under their project, worktrees under their repo, counts in
   const app = tree.projects.find((x) => x.p.id === "pa");
   assert.deepEqual([...app.repos.keys()], ["~/dev/app"]);
   const appRepo = app.repos.get("~/dev/app");
-  // review1 has no project but its repo is App's; most urgent agent first.
-  assert.deepEqual(appRepo.tasks.map((x) => x.t.id), ["blocked1", "review1", "doing1"]);
+  // review1 has no project but its repo is App's; in the order set (here, from priorities).
+  assert.deepEqual(appRepo.tasks.map((x) => x.t.id), ["doing1", "blocked1", "review1"]);
   assert.equal(app.count, 3 + appRepo.untracked.length);
   assert.ok(tree.orphan.repos.has("~"), "a folder with only a loose terminal shows under No project");
   assert.ok(tree.orphan.count > 0);
@@ -572,9 +609,9 @@ test("a light task you touch is yours: it keeps its name and stays when its tab 
   await settle();
   await v.store.load();
   const id = v.store.data.tasks.find((t) => t.auto).id;
-  // Priority set from the list's keys: kept.
+  // Moved to the top from the list's keys: kept.
   H.shared["tasker.selected"] = id;
-  v.command("p1", cx());
+  v.command("top", cx());
   await settle();
   assert.equal(v.store.task(id).auto, undefined);
   H.spaces[0].tabs = H.spaces[0].tabs.filter((t) => t.id !== "tb4");
@@ -668,7 +705,7 @@ test("detail: looks again without redrawing unless something changed, and skips 
   assert.ok(!H.hcLog.some((a) => a[0] === "read"));
 });
 
-test("detail: a priority picked there is saved and drawn at once", async () => {
+test("detail: a status picked there is saved and drawn at once; Activity only when turned on", async () => {
   world();
   H.props = { role: "detail" };
   H.shared["tasker.selected"] = "blocked1";
@@ -677,12 +714,16 @@ test("detail: a priority picked there is saved and drawn at once", async () => {
   v.init(H.props, c);
   await until(() => v.store.loaded);
   await settle();
-  const chip = walk(v.render(cx())).find((n) => n.id === "dp-3");
+  const { S } = await import("../mods/tasker/strings.js");
+  assert.ok(!text(v.render(cx())).includes(S.activity.toUpperCase()), "off by default");
+  const chip = walk(v.render(cx())).find((n) => n.id === "ds-waiting");
   const before = c.notified;
   chip.handlers.on_click({}, cx());
   await settle();
-  assert.equal(v.store.task("blocked1").priority, 3);
+  assert.equal(v.store.task("blocked1").status, "waiting");
   assert.ok(c.notified > before, "the copy that wrote redraws");
+  await v.store.update((d) => { d.settings.activity = true; });
+  assert.ok(text(v.render(cx())).includes(S.activity.toUpperCase()), "on in the settings");
 });
 
 test("plan usage: Claude's get_usage reply and Codex's logged limits", () => {
@@ -846,7 +887,7 @@ test("Linear: no key says how to add one; with a key, assigned issues import wit
     await settle();
     const t = v.store.data.tasks.find((x) => x.issue?.number === "ENG-12");
     assert.equal(t.status, "inbox");
-    assert.equal(t.priority, 1);
+    assert.equal(t.priority, undefined);
     assert.equal(t.due, "2026-12-01");
     assert.equal(t.issue.source, "linear");
     const { S } = await import("../mods/tasker/strings.js");

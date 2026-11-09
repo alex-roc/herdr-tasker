@@ -1,6 +1,6 @@
 {
   "name": "herdr-tasker",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
   "description": "A task manager for work done with coding agents: a layout for the Herdr app.",
   "license": "MIT",

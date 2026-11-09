@@ -257,6 +257,57 @@ test("projects reorder by dragging one onto another; a plain click still folds",
   assert.equal(view.dragProject, null);
 });
 
+test("tasks reorder by dragging a row onto another; from Inbox onto Up next it changes list", async () => {
+  const { view } = await mount({ role: "sidebar" });
+  H.shared["tasker.view"] = "now";
+  const row = (id) => walk(render(view).tree).find((n) => n.id === `t-${id}`);
+  const order = () => { const d = JSON.parse(H.files.get(FILE())); return d.tasks.filter((t) => ["next2", "next1"].includes(t.id)).sort((a, b) => a.rank - b.rank).map((t) => t.id); };
+  // Up next: next2 (was P1) above next1 (was P3). next1 dragged onto next2: above it.
+  row("next1").handlers["on_mouse_down:left"]({}, cx());
+  row("next2").handlers.on_mouse_move({}, cx());
+  assert.ok(row("next2").calls.some(([m]) => m === "border_t"), "a line above next2");
+  const c = cx();
+  row("next2").handlers["on_mouse_up:left"]({}, c);
+  await settle();
+  assert.deepEqual(order(), ["next1", "next2"]);
+  assert.ok(c.stopped > 0, "the drop isn't also a click");
+  // An idea from the Inbox dropped onto Up next: planned, at that place.
+  row("inbox1").handlers["on_mouse_down:left"]({}, cx());
+  row("next2").handlers.on_mouse_move({}, cx());
+  row("next2").handlers["on_mouse_up:left"]({}, cx());
+  await settle();
+  const d = JSON.parse(H.files.get(FILE()));
+  const t = (id) => d.tasks.find((x) => x.id === id);
+  assert.equal(t("inbox1").status, "next");
+  assert.ok(t("next1").rank < t("inbox1").rank && t("inbox1").rank < t("next2").rank, "between them");
+  // Onto a row of another kind of list (Working): nothing moves.
+  const before = H.files.get(FILE());
+  row("next1").handlers["on_mouse_down:left"]({}, cx());
+  row("doing1").handlers.on_mouse_move({}, cx());
+  assert.ok(!row("doing1").calls.some(([m]) => m === "border_t" || m === "border_b"), "no line where it can't land");
+  row("doing1").handlers["on_mouse_up:left"]({}, cx());
+  await settle();
+  assert.equal(H.files.get(FILE()), before);
+});
+
+test("board: a card dropped onto another takes its place, in its column", async () => {
+  const { view } = await mount({ role: "board" });
+  const card = (id) => walk(render(view).tree).find((n) => n.id === `card-${id}`);
+  card("inbox2").handlers["on_mouse_down:left"]({}, cx());
+  card("next2").handlers.on_mouse_move({}, cx());
+  assert.ok(card("next2").calls.some(([m]) => m === "border_t"), "a line above it");
+  const c = cx();
+  card("next2").handlers["on_mouse_up:left"]({}, c);
+  await settle();
+  assert.ok(c.stopped > 0, "not also a drop on the column");
+  const d = JSON.parse(H.files.get(FILE()));
+  const t = (id) => d.tasks.find((x) => x.id === id);
+  assert.equal(t("inbox2").status, "next");
+  assert.ok(t("inbox2").rank < t("next2").rank);
+  const cards = walk(render(view).tree).map((n) => n.id).filter((i) => ["card-inbox2", "card-next2", "card-next1"].includes(i));
+  assert.deepEqual(cards, ["card-inbox2", "card-next2", "card-next1"], "drawn in that order");
+});
+
 test("task form: due accepts words and shortcuts", async () => {
   const { view } = await mount({ dialog: "task", overlay: "ov1" });
   const c = cx();

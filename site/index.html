@@ -43,19 +43,19 @@ cd herdr-tasker &amp;&amp; ./install.sh --keys</span><button class="copy" data-c
         </div>
       </div>
 
-      <div class="now" role="img" aria-label="tasker's Now list: one task whose agent asks a question, one ready for review, two agents working, and the next tasks by priority.">
+      <div class="now" role="img" aria-label="tasker's Now list: one task whose agent asks a question, one ready for review, two agents working, and the next tasks in the order you set.">
         <div class="now-tabs"><b>Now</b><i>Projects</i></div>
         <div class="sec c-blocked" data-in style="--i:0">Needs you <small>1</small></div>
-        <div class="row" data-in style="--i:1"><span class="st blocked"></span><span class="t">Pick a database for sessions</span><span class="chips"><span class="chip p2">P2</span></span><span class="meta q">Sessions: Postgres or SQLite?</span></div>
+        <div class="row" data-in style="--i:1"><span class="st blocked"></span><span class="t">Pick a database for sessions</span><span class="meta q">Sessions: Postgres or SQLite?</span></div>
         <div class="sec c-done" data-in style="--i:2">To review <small>1</small></div>
-        <div class="row" data-in style="--i:3"><span class="st done"></span><span class="t">Rate-limit the public API</span><span class="chips"><span class="chip p1">P1</span></span><span class="meta">finished 3m ago</span></div>
+        <div class="row" data-in style="--i:3"><span class="st done"></span><span class="t">Rate-limit the public API</span><span class="meta">finished 3m ago</span></div>
         <div class="sec c-working" data-in style="--i:4">Working <small>2</small></div>
-        <div class="row sel" data-in style="--i:5"><span class="st working"></span><span class="t">Add OAuth login</span><span class="chips"><span class="chip due">in 2d</span><span class="chip p1">P1</span></span><span class="meta">opus 5.5 · high · ctx 182k · working 14m</span></div>
-        <div class="row" data-in style="--i:6"><span class="st working"></span><span class="t">Polish the README</span><span class="chips"><span class="chip p2">P2</span></span><span class="meta">gpt-5.5-codex · medium · working 6m</span></div>
+        <div class="row sel" data-in style="--i:5"><span class="st working"></span><span class="t">Add OAuth login</span><span class="chips"><span class="chip due">in 2d</span></span><span class="meta">opus 5.5 · high · ctx 182k · working 14m</span></div>
+        <div class="row" data-in style="--i:6"><span class="st working"></span><span class="t">Polish the README</span><span class="meta">gpt-5.5-codex · medium · working 6m</span></div>
         <div class="sec c-text" data-in style="--i:7">Up next <small>3</small></div>
-        <div class="row" data-in style="--i:8"><span class="st next"></span><span class="t">Fix the flaky checkout test</span><span class="chips"><span class="chip soon">today</span><span class="chip p1">P1</span></span><span class="meta">→ Reproduce with --repeat 50</span></div>
-        <div class="row" data-in style="--i:9"><span class="st next"></span><span class="t">Write the onboarding guide</span><span class="chips"><span class="chip due">in 4d</span><span class="chip p2">P2</span></span></div>
-        <div class="row" data-in style="--i:10"><span class="st next"></span><span class="t">Upgrade to Node 24</span><span class="chips"><span class="chip p3">P3</span></span></div>
+        <div class="row" data-in style="--i:8"><span class="st next"></span><span class="t">Fix the flaky checkout test</span><span class="chips"><span class="chip soon">today</span></span><span class="meta">→ Reproduce with --repeat 50</span></div>
+        <div class="row" data-in style="--i:9"><span class="st next"></span><span class="t">Write the onboarding guide</span><span class="chips"><span class="chip due">in 4d</span></span></div>
+        <div class="row" data-in style="--i:10"><span class="st next"></span><span class="t">Upgrade to Node 24</span></div>
       </div>
     </div>
   </section>
@@ -74,12 +74,12 @@ cd herdr-tasker &amp;&amp; ./install.sh --keys</span><button class="copy" data-c
 
       <div class="views">
         <div class="view side">
-          <img src="img/now-list.png" width="660" height="1540" alt="The Now list grouped into Needs you, To review, Working, Up next, Stalled, Inbox, and a folded Later section; agents started from a terminal are tasks in it too." loading="lazy">
+          <img src="img/now-list.png" width="660" height="1447" alt="The Now list grouped into Needs you, To review, Working, Up next, Stalled, Inbox, and a folded Later section; agents started from a terminal are tasks in it too." loading="lazy">
           <div><h3>Now</h3>
           <p>What moves work forward, in order. An agent's question sits in the row itself, so you can answer without hunting for the tab. Not now? Put a task off with <em>Later</em>: it waits out of the way and comes back on its day, with a reminder.</p></div>
         </div>
         <div class="view side">
-          <img src="img/projects.png" width="660" height="1590" alt="The Projects outline: Acme with a task and a terminal for the whole project above its repositories acme-web and acme-api, each with branch, changes and tasks." loading="lazy">
+          <img src="img/projects.png" width="660" height="1494" alt="The Projects outline: Acme with a task and a terminal for the whole project above its repositories acme-web and acme-api, each with branch, changes and tasks." loading="lazy">
           <div><h3>Projects</h3>
           <p>Projects, their repositories (branch, commits not pushed, uncommitted changes) and their tasks. Terminals that belong to no task show up under their repository with a <em>Make task</em> button. Each project gets its own board, and its own terminal, tasks and agents, which work across all its repositories. Want both lists at once? Stack Projects over Now in the settings.</p></div>
         </div>
@@ -87,11 +87,11 @@ cd herdr-tasker &amp;&amp; ./install.sh --keys</span><button class="copy" data-c
         <div class="view wide">
           <img src="img/board.png" width="2220" height="1210" alt="The board: Inbox, Next, Doing, Waiting, Review and Done columns with task cards." loading="lazy">
           <h3>Board</h3>
-          <p>One column per status, and a board per project in a tab of its own. Agents started from a terminal are cards too. Drag a card to move it, and watch the Doing column count against the limit you set.</p>
+          <p>One column per status, and a board per project in a tab of its own. Agents started from a terminal are cards too. Drag a card to another column or into place among the others, and watch the Doing column count against the limit you set.</p>
         </div>
 
         <div class="view wide split">
-          <img src="img/detail-blocked.png" width="736" height="1750" alt="The detail of a task whose agent needs an answer: the question, the agent's screen, its changes and a message box." loading="lazy">
+          <img src="img/detail-blocked.png" width="736" height="1533" alt="The detail of a task whose agent needs an answer: the question, the agent's screen, its changes and a message box." loading="lazy">
           <div>
             <h3>Task detail</h3>
             <p>Everything about one task, next to its agent.</p>
@@ -113,7 +113,7 @@ cd herdr-tasker &amp;&amp; ./install.sh --keys</span><button class="copy" data-c
       <p class="intro">You plan; the agents' state moves the rest. No pipeline to set up, and nothing is marked done unless you do it.</p>
       <ol class="track track-wrap">
         <li style="--c:var(--muted)"><b>Inbox</b><span>Ideas and imported GitHub issues.</span></li>
-        <li style="--c:var(--text)"><b>Next</b><span><em>You</em> plan it, with a priority and a due date.</span></li>
+        <li style="--c:var(--text)"><b>Next</b><span><em>You</em> plan it: drag it into place, give it a due date.</span></li>
         <li style="--c:var(--working)"><b>Doing</b><span>Moves here <em>by itself</em> when its agent starts working.</span></li>
         <li style="--c:var(--done)"><b>Review</b><span>Moves here <em>by itself</em> when its agent stops.</span></li>
         <li style="--c:var(--ok)"><b>Done</b><span>Only <em>you</em> mark it done, after looking.</span></li>
@@ -127,7 +127,7 @@ cd herdr-tasker &amp;&amp; ./install.sh --keys</span><button class="copy" data-c
       <p class="intro">The parts that save a trip to another window.</p>
       <div class="views">
         <div class="view wide split">
-          <img src="img/detail-resume.png" width="736" height="1104" alt="A task whose agent is gone, with Resume agent above Start agent." loading="lazy">
+          <img src="img/detail-resume.png" width="736" height="888" alt="A task whose agent is gone, with Resume agent above Start agent." loading="lazy">
           <div>
             <h3>Resume after a restart</h3>
             <p>tasker remembers the Claude Code or Codex conversation each task's agent was in. After a reboot, or once you closed its tab, <em>Resume agent</em> picks it up where it was, in its folder, tied to the task again.</p>
@@ -137,12 +137,12 @@ cd herdr-tasker &amp;&amp; ./install.sh --keys</span><button class="copy" data-c
           </div>
         </div>
         <div class="view wide split">
-          <img src="img/light-tasks.png" width="660" height="720" alt="Now with planned tasks and two agents started from a terminal, Try a search box for the docs and Map the services across both repos, listed as tasks by themselves." loading="lazy">
+          <img src="img/light-tasks.png" width="660" height="685" alt="Now with planned tasks and two agents started from a terminal, Try a search box for the docs and Map the services across both repos, listed as tasks by themselves." loading="lazy">
           <div>
             <h3>Tasks or terminals, the same flow</h3>
-            <p>Started an agent in a terminal on a hunch? Its tab is a task already, a light one named after what the agent calls its work, moving from Doing to Review with it, on the list and the board. Give it a priority, a note or a later day and it's yours; leave it, and it goes away with its tab. Plan with tasks when you want the details; work with terminals when you don't.</p>
+            <p>Started an agent in a terminal on a hunch? Its tab is a task already, a light one named after what the agent calls its work, moving from Doing to Review with it, on the list and the board. Give it a note, a place or a later day and it's yours; leave it, and it goes away with its tab. Plan with tasks when you want the details; work with terminals when you don't.</p>
             <h3>Issues from GitHub and Linear</h3>
-            <p>Import open GitHub issues of a repository, or the Linear issues assigned to you, into the Inbox. Linear's priority and due date come along, and the agent you start gets the issue in its first message.</p>
+            <p>Import open GitHub issues of a repository, or the Linear issues assigned to you, into the Inbox. Linear's most urgent come first, with their due dates, and the agent you start gets the issue in its first message.</p>
           </div>
         </div>
       </div>

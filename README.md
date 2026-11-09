@@ -9,16 +9,16 @@ projects → repositories → tasks → the agents working on them, with what ne
 ![tasker: the Now list, an agent at work, and the task's detail](preview.png)
 
 Herdr already shows every terminal and agent you run. tasker adds the layer above them: *what are
-these agents for?* Each tab can belong to a task; a task knows its repository, priority, due date and
-next step; and the list tells you what to do next: answer the agent that's waiting, review what one
+these agents for?* Each tab can belong to a task; a task knows its repository, due date and
+next step, and sits where you dragged it; and the list tells you what to do next: answer the agent that's waiting, review what one
 finished, or start the next task.
 
 What makes it different:
 
 - **Tasks follow their agents, and you have the last word.** A task moves to Doing when its agent
   starts working and to Review when it stops; only you mark it Done. No pipeline to configure.
-- **Real planning, not just a list of agents.** Projects and repositories, priorities, due dates in
-  plain words, a limit on what's in progress, and stalled work called out.
+- **Real planning, not just a list of agents.** Projects and repositories, an order you set by dragging,
+  due dates in plain words, a limit on what's in progress, and stalled work called out.
 - **Light and local.** One mod and one JSON file you (or an agent) can edit. No service, daemon,
   account or extra CLI. GitHub and Linear are optional imports.
 
@@ -41,13 +41,19 @@ What makes it different:
 | **Needs you** | Tasks whose agent is blocked, with the agent's question right in the row |
 | **To review** | Tasks in Review, and tasks in Doing whose agent finished |
 | **Working** | Tasks with an agent at work: model · effort · context size · how long |
-| **Up next** | Next, Doing and Waiting tasks by priority, then due date |
+| **Up next** | Next, Doing and Waiting tasks, in the order you set: drag a row onto another |
 | **Stalled** | Doing or Waiting tasks that haven't moved in a few days |
 | **Inbox** | Ideas and imported issues, not yet planned |
 | **Later** | Tasks you put off, folded: each comes back on its day (or *someday*: when you bring it back) |
 
 Which status when: **Next** you'll do it, **Waiting** it depends on someone else, **Inbox** not decided,
-**Dropped** you won't. To put one off without changing what it is, use **Later** (right-click, `z`, or
+**Dropped** you won't.
+
+**What goes first is where you put it.** Drag a task onto another in Up next, the Inbox or a project
+in Projects, and it takes that place (a line shows where it lands); drag an idea from the Inbox onto
+Up next and it's planned. `t`, or *Move to the top* in its menu, puts it first. New tasks go last.
+
+To put one off without changing what it is, use **Later** (right-click, `z`, or
 the detail): tomorrow, next week, a day you type (`fri`, `+3d`, `12-24`) or *someday*. On its day it
 comes back with a notification. Once a day, a notification also tells you what's due or late
 (*Reminders* in the settings turns both off).
@@ -55,7 +61,7 @@ comes back with a notification. Once a day, a notification also tells you what's
 **Tasks or terminals, the same flow.** Every agent's tab is a task from its start (*Track agents
 automatically*, on by default): a light one, named after what the agent calls its work, Doing while it
 works and in Review when it's done, on the board and in Projects like any other. Put it off, give it a
-priority or a note, drag it on the board: it's yours from then on. A light one you never touched goes
+note, drag it to another place: it's yours from then on. A light one you never touched goes
 away when you close its tab. So you can work only with terminals and agents and still get the list,
 the board, Later, the reminders and the resume after a restart; and plan tasks with details (next
 step, notes, due date, issues, a worktree) when you want them. Shells aren't tasks.
@@ -81,7 +87,7 @@ Codex); a task in one repository of a bigger project hears of the others. Termin
 model, effort, context and how long in their state.
 
 **Board**: a kanban tab (`cmd-shift-b`, or the board button in Now) with Inbox, Next, Doing (with your
-limit), Waiting, Review and Done (last 7 days). Drag a card to change its status, click to open it,
+limit), Waiting, Review and Done (last 7 days). Drag a card to another column to change its status, or onto another card to put it there; click to open it,
 right-click for its menu. Every board is a tab: **Board** for every project, and **Board · Acme** for
 each project, with only its tasks and agents. The pills at the top (All · Acme · …) go from one board
 to another, opening its tab the first time. Agents in no task wait in a **No
@@ -90,11 +96,11 @@ task** lane on the left: drag one onto a column to make it a task there.
 ![The board](docs/board.png)
 
 **Task detail** (right panel, when you want more: the panel button in the status bar, `cmd-i`, `i`
-or *Details* in a task's menu; selecting a task never opens it, and it stays as you left it): status and priority, the next step and notes; each agent with its
+or *Details* in a task's menu; selecting a task never opens it, and it stays as you left it): status, the next step and notes; each agent with its
 model, reasoning effort, context, turn and sub-agents, and the question it's waiting on; the last
 lines of its screen; the changes in its folder, its pull request and CI checks (with *Ask for a pull
-request* and *Send failed checks*); a box to **message the agent**; time in state, agent time and the
-history.
+request* and *Send failed checks*); a box to **message the agent**; time in state and agent time
+(and every status change, with *Activity in the details* on in the settings).
 
 **Start agent** on a task opens your agent in the repository's space with the task (title, next
 step, notes, issue) as its first message. **Start in a worktree** first creates the branch
@@ -159,8 +165,9 @@ Your other layouts are untouched; switch back the same way.
 
 Settings (the gear in the status bar): Now and Projects as tabs or **stacked** (both at once, one
 above the other, as Herdr's spaces and agents), how many tasks can be in Doing before the status bar
-warns you, after how many days a task counts as stalled, which agent *Start agent* runs, and whether
-the status bar shows plan usage. Stacked, `tab` moves the keys between the two lists.
+warns you, after how many days a task counts as stalled, which agent *Start agent* runs, whether
+the detail lists every status change (*Activity*, off by default) and whether the status bar shows
+plan usage. Stacked, `tab` moves the keys between the two lists.
 
 **After a restart**: Herdr brings every terminal back, as a shell in its last folder. tasker
 remembers which Claude Code or Codex conversation each one had (`data/tasker/terminals.json`), and
@@ -173,7 +180,7 @@ whether they work or stopped is read from their terminal's title.
 **Linear** (optional): create a personal API key (Linear → Settings → Security & access → Personal
 API keys) and either export it as `LINEAR_API_KEY` in your login shell profile or save it alone in
 `~/.config/herdr-app/data/tasker/linear-key`. *Import Linear issues* lists your open issues assigned
-to you; their priority and due date come along. tasker only reads from Linear.
+to you, most urgent first, with their due date. tasker only reads from Linear.
 
 ## Keys
 
@@ -189,7 +196,7 @@ With `./install.sh --keys` (only while the tasker layout is shown):
 | `cmd-shift-b` | Open the board |
 
 In the list: `j`/`k` or arrows move, `enter` goes to the task's agent, `space` marks done (again: back
-to Next), `1` `2` `3` set priority, `n` new, `e` edit, `l` start agent, `w` start in a worktree, `r` resume
+to Next), `t` to the top, `n` new, `e` edit, `l` start agent, `w` start in a worktree, `r` resume
 its agent, `z` later, `i` details, `/` find, `tab` switches view. Clicking a task shows it and brings its agent's tab (or its
 terminal) to the front. Right-click a task, a repository or a project for its menu.
 
@@ -204,12 +211,12 @@ file it can't read (it shows what's wrong instead). It never goes in this reposi
 
 ```jsonc
 {
-  "settings": { "wip": 3, "stale_days": 3, "agent": "claude", "usage": false, "reminders": true },   // agent: a key from Herdr's agent menu
+  "settings": { "wip": 3, "stale_days": 3, "agent": "claude", "usage": false, "reminders": true, "activity": false },   // agent: a key from Herdr's agent menu
   "projects": [{ "id": "p1", "name": "Acme", "color": "ansi4", "repos": ["~/dev/acme"] }],
   "tasks": [{
     "id": "t1", "title": "Add OAuth login", "project": "p1", "repo": "~/dev/acme",
     "status": "next",            // inbox | next | doing | waiting | review | done | dropped
-    "priority": 1,               // 1 high, 2 normal, 3 low
+    "rank": 4,                   // its place in every list, lower first (set by dragging; leave it out: last)
     "due": "2026-11-20", "estimate": "2h", "next_step": "Wire the callback", "notes": "",
     "snooze": null,              // Later: "YYYY-MM-DD" (back that day) or "someday"
     "issue": { "source": "github", "number": 12, "url": "https://github.com/…", "body": "…" },  // Linear: "number": "ENG-12"

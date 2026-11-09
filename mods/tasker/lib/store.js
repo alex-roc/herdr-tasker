@@ -5,13 +5,13 @@
 
 import { readTextFile, writeTextFile, appHome, watchFolder } from "herdr";
 import * as fs from "fs/promises";
-import { uid, STATUSES, parseDue } from "./util.js";
+import { uid, STATUSES, parseDue, daysUntil, byRank, reorder } from "./util.js";
 import { S } from "../strings.js";
 
 export const DIR = () => `${appHome()}/data/tasker`;
 export const FILE = () => `${DIR()}/tasks.json`;
 
-export const DEFAULTS = { wip: 3, stale_days: 3, agent: "claude", usage: false, reminders: true, revive: true, track: true };
+export const DEFAULTS = { wip: 3, stale_days: 3, agent: "claude", usage: false, reminders: true, revive: true, track: true, activity: false };
 const EMPTY = () => ({ version: 1, settings: { ...DEFAULTS }, projects: [], tasks: [] });
 
 const str = (v) => (typeof v === "string" ? v : v == null ? "" : String(v));
@@ -35,7 +35,10 @@ export function cleanTask(t) {
     project: strOrNull(t.project),
     repo: strOrNull(t.repo),
     status,
-    priority: [1, 2, 3].includes(p) ? p : 2,
+    // Its place in every list, set by dragging (lower first). A task without one (written by
+    // hand or by an agent, or from before) gets one on reading; `priority` only says where.
+    rank: Number.isFinite(Number(t.rank)) && t.rank !== null && t.rank !== "" ? Number(t.rank) : null,
+    ...(t.rank == null || t.rank === "" ? { priority: [1, 2, 3].includes(p) ? p : 2 } : {}),
     due: due ?? null,
     estimate: strOrNull(t.estimate),
     next_step: str(t.next_step),
@@ -65,6 +68,25 @@ export function cleanProject(p) {
   return { ...p, id: str(p.id) || uid(), name: str(p.name).trim() || "Untitled", color: str(p.color) || "ansi4", repos: list(p.repos).filter((r) => typeof r === "string") };
 }
 
+// Every task gets a place: one without (hand-written, an agent's, a file from before ranks)
+// goes last, or first when its priority is high (1 / "high"); several in the old order
+// (priority, due date, oldest), so a file from before keeps its order. Deterministic: the
+// same file reads the same until it's written.
+export function rankTasks(tasks) {
+  const ranked = tasks.filter((t) => t.rank != null);
+  const legacy = (a, b) => (a.priority ?? 2) - (b.priority ?? 2) || (daysUntil(a.due) ?? 9999) - (daysUntil(b.due) ?? 9999) || (a.created ?? 0) - (b.created ?? 0);
+  const unranked = tasks.filter((t) => t.rank == null).sort(legacy);
+  if (unranked.length) {
+    const first = unranked.filter((t) => t.priority === 1), last = unranked.filter((t) => t.priority !== 1);
+    let lo = ranked.length ? Math.min(...ranked.map((t) => t.rank)) : 1;
+    let hi = ranked.length ? Math.max(...ranked.map((t) => t.rank)) : 0;
+    for (const t of [...first].reverse()) t.rank = --lo;
+    for (const t of last) t.rank = ++hi;
+  }
+  for (const t of tasks) delete t.priority;
+  return tasks;
+}
+
 // Two tasks with one id (two hand-made entries in the same second) would be one
 // task to every view: the later ones get "-2", "-3", the same on every read.
 function unique(tasks) {
@@ -90,13 +112,14 @@ export function parse(text) {
   settings.reminders = settings.reminders !== false;
   settings.revive = settings.revive !== false;
   settings.track = settings.track !== false;
+  settings.activity = settings.activity === true; // the detail's list of status changes: off unless turned on
   const obj = (x) => x && typeof x === "object" && !Array.isArray(x);
   return {
     ...d,
     version: d.version ?? 1,
     settings,
     projects: list(d.projects).filter(obj).map(cleanProject),
-    tasks: unique(list(d.tasks).filter(obj).map(cleanTask)),
+    tasks: rankTasks(unique(list(d.tasks).filter(obj).map(cleanTask))),
   };
 }
 
@@ -209,7 +232,7 @@ export function newTask(data, fields) {
     project: null,
     repo: null,
     status: "inbox",
-    priority: 2,
+    rank: Math.max(0, ...data.tasks.map((x) => (Number.isFinite(x.rank) ? x.rank : 0))) + 1, // last
     due: null,
     estimate: null,
     next_step: "",
@@ -244,6 +267,32 @@ export function setStatus(t, status, now = Date.now()) {
   if (["doing", "done", "dropped"].includes(status)) t.snooze = null;
   (t.history ??= []).push({ s: status, at: now });
   if (t.history.length > 60) t.history.splice(0, t.history.length - 60);
+  return true;
+}
+
+// Dragged onto `target` in a list showing `ids` in order: it takes that place there, the
+// list's tasks sharing out the places they had (and its own), so nothing else moves.
+export function moveTask(data, id, ids, target) {
+  const byId = new Map(data.tasks.map((t) => [t.id, t]));
+  if (!byId.has(id) || !byId.has(target) || id === target) return false;
+  // Two tasks in one place (copied by hand): every task gets its own first.
+  const ranks = data.tasks.map((t) => t.rank);
+  if (new Set(ranks).size !== ranks.length || ranks.some((r) => !Number.isFinite(r))) {
+    [...data.tasks].sort(byRank).forEach((t, i) => { t.rank = i + 1; });
+  }
+  const order = reorder(ids.filter((x) => byId.has(x)), id, target);
+  const places = order.map((x) => byId.get(x).rank).sort((a, b) => a - b);
+  order.forEach((x, i) => { byId.get(x).rank = places[i]; });
+  return true;
+}
+
+// First in every list.
+export function toTop(data, id) {
+  const t = data.tasks.find((x) => x.id === id);
+  if (!t) return false;
+  const lo = Math.min(...data.tasks.filter((x) => x !== t && Number.isFinite(x.rank)).map((x) => x.rank));
+  if (Number.isFinite(lo) && t.rank < lo) return false;
+  t.rank = (Number.isFinite(lo) ? lo : 1) - 1;
   return true;
 }
 

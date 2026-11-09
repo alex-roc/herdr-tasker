@@ -6,11 +6,11 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { theme, run, shared, setShared, setAgentOrder, home, spaces, terminals, panes, nextCommand, props, notify, window } from "herdr";
 import { S } from "./strings.js";
-import { setStatus, kept } from "./lib/store.js";
+import { setStatus, kept, moveTask, toTop } from "./lib/store.js";
 import { nowView, projectTree, untrackedName, agentTitle } from "./lib/world.js";
 import { arrived, link, openHere, adopt, openInProject, labelProject, openBoard } from "./lib/actions.js";
 import { RANK, shortModel, kilo, base, tilde, today, isLater, laterLabel } from "./lib/util.js";
-import { taskMark, prioChip, dueChip, agentMark, sectionHeader, iconButton, programIcon, CHEVRON, icon, agentFor, shownLists } from "./lib/ui.js";
+import { taskMark, dueChip, agentMark, sectionHeader, iconButton, programIcon, CHEVRON, icon, agentFor, shownLists } from "./lib/ui.js";
 import { sharedCache } from "./lib/cache.js";
 import { Revive } from "./lib/revive.js";
 import { openDialog } from "./lib/open.js";
@@ -98,7 +98,7 @@ export const Sidebar = {
     else this.openTaskForm({ task: task.id });
   },
 
-  // Keys: j/k move, enter goes to the agent, space done, 1-3 priority, n new, e edit, l launch, w worktree, / jump.
+  // Keys: j/k move, enter goes to the agent, space done, t to the top, n new, e edit, l launch, w worktree, / jump.
   command(c, cx) {
     const sel = shared("tasker.selected");
     const i = this.order.indexOf(sel);
@@ -117,7 +117,7 @@ export const Sidebar = {
       case "up": return move(-1);
       case "open": return task && this.go(task, this.world?.taskById.get(task.id));
       case "done": return upd((x) => setStatus(x, x.status === "done" ? "next" : "done"));
-      case "p1": case "p2": case "p3": return upd((x) => { x.priority = Number(c[1]); });
+      case "top": return task && cx.spawn(async () => this.store.update((d) => { const x = d.tasks.find((y) => y.id === task.id); if (!x) return false; kept(x); return toTop(d, task.id); }));
       case "new": return this.openTaskForm({});
       case "edit": return task && this.openTaskForm({ task: task.id });
       case "launch": return task && this.launch(cx, task, false);
@@ -134,7 +134,7 @@ export const Sidebar = {
   },
 
   key(e, cx) {
-    const map = { j: "down", down: "down", k: "up", up: "up", enter: "open", space: "done", 1: "p1", 2: "p2", 3: "p3", n: "new", e: "edit", l: "launch", w: "worktree", r: "resume", z: "later", i: "details", "/": "jump", tab: "view" };
+    const map = { j: "down", down: "down", k: "up", up: "up", enter: "open", space: "done", t: "top", n: "new", e: "edit", l: "launch", w: "worktree", r: "resume", z: "later", i: "details", "/": "jump", tab: "view" };
     const c = e.modifiers?.control || e.modifiers?.platform || e.modifiers?.alt ? null : map[e.key];
     if (!c) return;
     this.command(c, cx);
@@ -293,8 +293,36 @@ export const Sidebar = {
     cx.notify();
   },
 
+  // A task dropped on another row: it takes that one's place in the list (`ids`, in order).
+  // From Inbox onto Up next (or back) it changes list too.
+  dropTask(cx, target, ids) {
+    const from = this.dragTask;
+    this.dragTask = null;
+    this.dragOver = null;
+    if (!from || from === target) return;
+    cx.stop_propagation();
+    const plan = ["inbox", "next"];
+    cx.spawn(async () => this.store.update((d) => {
+      const t = d.tasks.find((y) => y.id === from), to = d.tasks.find((y) => y.id === target);
+      if (!t || !to) return false;
+      kept(t);
+      if (t.status !== to.status && plan.includes(t.status) && plan.includes(to.status)) setStatus(t, to.status);
+      t.updated = Date.now();
+      return moveTask(d, from, ids, target);
+    }));
+    cx.notify();
+  },
+
+  // Where a row being dragged may land: in its own list, or between Inbox and Up next.
+  canDrop(task, ids) {
+    const from = this.dragTask && this.store.task(this.dragTask);
+    if (!from || from.id === task.id) return false;
+    return ids.includes(from.id) || (["inbox", "next"].includes(from.status) && ["inbox", "next"].includes(task.status));
+  },
+
   // ── Rows ────────────────────────────────────────────────────────────────
-  taskRow(t, x, { showRepo = false, depth = 0 } = {}) {
+  // `ids`: the list it's in, in order, when it can be dragged to another place in it.
+  taskRow(t, x, { showRepo = false, depth = 0, ids = null } = {}) {
     const task = x.t;
     const e = lead(x);
     const info = e ? this.info.get(e.a.address) : null;
@@ -307,8 +335,18 @@ export const Sidebar = {
     const second = msg || meta || later || (task.next_step ? `→ ${task.next_step}` : null);
     const done = task.status === "done" || task.status === "dropped";
     const due = done ? null : dueChip(t, task.due);
+    // Another row held over this one: a line shows where it lands (below when it comes from above).
+    const target = Boolean(ids) && this.dragOver === task.id && this.canDrop(task, ids);
+    const below = target && ids.indexOf(this.dragTask) >= 0 && ids.indexOf(this.dragTask) < ids.indexOf(task.id);
     return v_flex().id(`t-${task.id}`).pl(8 + depth * 14).pr(6).py(4).flex_none().rounded(8).gap(1)
       .when(selected, (el) => el.bg(t.selected))
+      .when(this.dragTask === task.id && Boolean(this.dragOver) && this.dragOver !== task.id, (el) => el.opacity(0.45))
+      .when(target && !below, (el) => el.rounded_none().border_t(2).border_color(t.accent))
+      .when(target && below, (el) => el.rounded_none().border_b(2).border_color(t.accent))
+      .when(Boolean(ids), (el) => el
+        .on_mouse_down("left", () => { this.dragTask = task.id; this.dragOver = null; })
+        .on_mouse_move((_e, cx) => { if (this.dragTask && this.dragOver !== task.id) { this.dragOver = task.id; cx.notify(); } })
+        .on_mouse_up("left", (_e, cx) => { if (this.canDrop(task, ids)) this.dropTask(cx, task.id, ids); }))
       .cursor_pointer().hover((s) => s.bg(t.hover))
       // Shows the task and brings its tab to the front; a task with none keeps the keys here.
       .on_click((_e, cx) => {
@@ -324,8 +362,7 @@ export const Sidebar = {
         .child(div().flex_1().min_w(0).truncate().text_color(done || later ? t.dim : t.foreground).when(e?.top === "done", (el) => el.font_semibold()).child(task.title))
         .when(showRepo && Boolean(task.repo), (el) => el.child(div().flex_none().max_w(90).truncate().text_size(11).text_color(t.dim).child(base(task.repo))))
         .when(this.hovered === task.id && !e && !done, (el) => el.child(iconButton(t, `go-${task.id}`, "play", S.startHint, (_e, cx) => this.launch(cx, task, false))))
-        .when(Boolean(due), (el) => el.child(due))
-        .child(prioChip(t, task.priority)))
+        .when(Boolean(due), (el) => el.child(due)))
       .when(Boolean(second), (el) => el.child(div().pl(23).truncate().text_size(11).text_color(blocked ? t.blocked : t.dim).child(second)));
   },
 
@@ -370,7 +407,9 @@ export const Sidebar = {
       const open = shut ? this.folded.has(key) : !this.folded.has(key);
       rows.push(sectionHeader(t, `sec-${id}`, label, list.length + untracked.length, color, open, (cx) => this.fold(key, cx)));
       if (!open) return;
-      for (const x of list.slice(0, max)) { rows.push(this.taskRow(t, x, { showRepo: true })); order.push(x.t.id); }
+      // Later keeps its order by day; every other list can be reordered by dragging.
+      const ids = shut ? null : list.map((x) => x.t.id);
+      for (const x of list.slice(0, max)) { rows.push(this.taskRow(t, x, { showRepo: true, ids })); order.push(x.t.id); }
       for (const u of untracked) rows.push(this.untrackedRow(t, u));
       if (list.length > max) rows.push(div().id(`more-${id}`).pl(31).h(22).text_size(11).text_color(t.dim).cursor_pointer().hover((s) => s.text_color(t.foreground))
         .on_click(() => setShared("tasker.view", "projects")).child(S.more(list.length - max)));
@@ -417,7 +456,8 @@ export const Sidebar = {
         .child(iconButton(t, `add-${id}`, "plus", S.newTask, () => this.openTaskForm({ repo: r.key, project: proj?.id ?? null })))
         .child(iconButton(t, `more-${id}`, "ellipsis", S.repoMenu, () => openDialog("repo", { repo: r.key, project: proj?.id ?? null }))));
       if (!open) return;
-      for (const x of r.tasks) { rows.push(this.taskRow(t, x, { depth: 2 })); order.push(x.t.id); }
+      const ids = r.tasks.map((x) => x.t.id);
+      for (const x of r.tasks) { rows.push(this.taskRow(t, x, { depth: 2, ids })); order.push(x.t.id); }
       for (const u of r.untracked) rows.push(this.untrackedRow(t, u, 2));
     };
     const projectHeader = (x) => {
@@ -453,7 +493,8 @@ export const Sidebar = {
         .child(svg(CHEVRON(open)).size(11).flex_none().text_color(t.dim)));
       if (!open) return;
       // The whole project's work first (tasks and tabs above its repositories), then each repository.
-      for (const t2 of x.loose) { rows.push(this.taskRow(t, t2, { depth: 1 })); order.push(t2.t.id); }
+      const ids = x.loose.map((y) => y.t.id);
+      for (const t2 of x.loose) { rows.push(this.taskRow(t, t2, { depth: 1, ids })); order.push(t2.t.id); }
       for (const u of x.untracked) rows.push(this.untrackedRow(t, u, 1));
       for (const r of x.repos.values()) repoRows(p, r);
     };
@@ -484,7 +525,7 @@ export const Sidebar = {
       .hover((s) => s.bg(t.hover)).on_click(() => setShared("tasker.view", id)).child(icon(id === "now" ? "zap" : "folder-tree", 13)).child(label);
     return v_flex().id("tasker-sidebar").track_focus(this.handle).on_key_down((e, cx) => this.key(e, cx))
       // Released anywhere but on a project: the drag is off.
-      .on_mouse_up("left", (_e, cx) => { if (this.dragProject) { this.dragProject = null; this.dragOver = null; cx.notify(); } })
+      .on_mouse_up("left", (_e, cx) => { if (this.dragProject || this.dragTask) { this.dragProject = null; this.dragTask = null; this.dragOver = null; cx.notify(); } })
       .size_full().min_h(0).bg(t.chrome).text_size(12.8).text_color(t.foreground)
       .child(h_flex().px(10).h(40).flex_none().gap(4).items_center().border_b(1).border_color(t.border)
         .when(!this.fixedView, (el) => el.child(tabBtn("now", S.now)).child(tabBtn("projects", S.projects)))

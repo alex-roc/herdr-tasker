@@ -158,11 +158,19 @@ export const issueLabel = (issue) => (issue ? (issue.source === "linear" ? Strin
 
 export const kilo = (n) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(n));
 
-// Next-up order: priority, then due date, then oldest.
-export function byUrgency(a, b) {
-  const pa = a.priority ?? 2, pb = b.priority ?? 2;
-  if (pa !== pb) return pa - pb;
-  const da = daysUntil(a.due) ?? 9999, db = daysUntil(b.due) ?? 9999;
-  if (da !== db) return da - db;
+// The order you set by dragging: `rank` (lower first), then oldest.
+export function byRank(a, b) {
+  const ra = Number.isFinite(a.rank) ? a.rank : Infinity, rb = Number.isFinite(b.rank) ? b.rank : Infinity;
+  if (ra !== rb) return ra < rb ? -1 : 1;
   return (a.created ?? 0) - (b.created ?? 0);
+}
+
+// `ids` with `id` put where `target` is: after it when it came from above (it takes that
+// place, as a dragged row does), else before it. `id` may come from another list.
+export function reorder(ids, id, target) {
+  const from = ids.indexOf(id), to = ids.indexOf(target);
+  const out = ids.filter((x) => x !== id);
+  if (to < 0 || id === target) return from < 0 ? out : ids.slice();
+  out.splice(out.indexOf(target) + (from >= 0 && from < to ? 1 : 0), 0, id);
+  return out;
 }

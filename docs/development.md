@@ -101,6 +101,11 @@ task, so they're neither tracked as light tasks nor drawn; its agents' addresses
   program in front, a shell being no agent. Claude Code marks its title (◐◑ working, ✳ idle), but
   `terminals()` and `panes()` hand mods the title without the mark: `hc get` has it.
 
+- Dragging is three handlers, no drag API: `on_mouse_down` marks what's held, `on_mouse_move` over
+  another row or card marks the target (and draws the line), `on_mouse_up` there drops. The target
+  calls `cx.stop_propagation()` so its container's own `on_mouse_up` (a board column's drop, the
+  list's "drag is off") doesn't run too; a card's `on_mouse_move` stops it as well, or the column
+  under it would take the target back.
 - Herdr doesn't hot-reload a mod folder that is a symlink: install by copying.
 - `child(null)` throws in gpui-kit, and so does using an element twice. `false` is fine.
 - Every copy of the mod (sidebar, detail, status bar, board, each dialog) runs its own `init` and

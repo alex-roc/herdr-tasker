@@ -15,7 +15,6 @@
   --done: #5fc4b5;
   --waiting: #e6b86a;
   --ok: #8cc887;
-  --p1: #e5737b;
   --sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --measure: 66ch;
@@ -119,9 +118,6 @@ pre .c { color: var(--muted); }
 .row .meta.q { color: var(--blocked); }
 .row .chips { display: flex; gap: 5px; align-items: center; }
 .chip { font-size: 10.5px; font-weight: 600; padding: 1px 5px; border-radius: 4px; }
-.chip.p1 { color: var(--p1); background: color-mix(in srgb, var(--p1) 14%, transparent); }
-.chip.p2 { color: var(--waiting); background: color-mix(in srgb, var(--waiting) 14%, transparent); }
-.chip.p3 { color: var(--muted); background: color-mix(in srgb, var(--muted) 14%, transparent); }
 .chip.due { color: var(--muted); background: var(--raised); font-weight: 500; }
 .chip.soon { color: var(--waiting); background: color-mix(in srgb, var(--waiting) 14%, transparent); }
 .chip.late { color: var(--blocked); background: color-mix(in srgb, var(--blocked) 14%, transparent); }

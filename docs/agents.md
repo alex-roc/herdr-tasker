@@ -14,9 +14,12 @@ layout reloads it within a second of any save, from any program.
    file next to it and rename it over `tasks.json`, so nobody reads half a file.
 2. **New task**: `id` (any unique string, e.g. `agent-` + a timestamp) and `title` are enough.
    Usual extras: `project` (a project's `id`), `repo` (`~/path/to/repo`), `status` (`inbox` for an
-   idea, `next` for planned work), `priority` (1 high, 2 normal, 3 low), `due` (`YYYY-MM-DD`; words
+   idea, `next` for planned work), `due` (`YYYY-MM-DD`; words
    like "tomorrow" are dropped), `next_step`, `notes`. To put a task off, set `snooze` to a day
    (`YYYY-MM-DD`: it comes back then) or `"someday"`; `null` brings it back.
+   **Order**: leave `rank` out and the task goes last in its lists; add `"priority": "high"` (or `1`)
+   to put it first instead. The person orders the rest by dragging (`rank`, lower first): don't
+   change another task's `rank`.
 3. **Status** is one of `inbox`, `next`, `doing`, `waiting`, `review`, `done`, `dropped`. When you
    change it, also set `updated` (ms since the epoch) and append `{ "s": "<status>", "at": <ms> }` to
    `history`, so the person sees when it moved. For `done`, set `done_at` too.
@@ -34,7 +37,7 @@ const file = `${process.env.HERDR_APP_HOME ?? `${homedir()}/.config/herdr-app`}/
 const data = JSON.parse(readFileSync(file, "utf8"));
 const now = Date.now();
 data.tasks.push({ id: `agent-${now}`, title: "Write tests for the parser", repo: "~/dev/app",
-  status: "next", priority: 2, next_step: "Cover empty input", created: now, updated: now,
+  status: "next", next_step: "Cover empty input", created: now, updated: now,
   history: [{ s: "next", at: now }] });
 writeFileSync(`${file}.tmp`, JSON.stringify(data, null, 1) + "\n");
 renameSync(`${file}.tmp`, file);
@@ -46,7 +49,7 @@ renameSync(`${file}.tmp`, file);
 f=~/.config/herdr-app/data/tasker/tasks.json
 now=$(($(date +%s) * 1000))
 jq --arg id "agent-$now" --argjson now "$now" \
-  '.tasks += [{id: $id, title: "Update the changelog", status: "inbox", priority: 3, created: $now, updated: $now, history: [{s: "inbox", at: $now}]}]' \
+  '.tasks += [{id: $id, title: "Update the changelog", status: "inbox", created: $now, updated: $now, history: [{s: "inbox", at: $now}]}]' \
   "$f" > "$f.tmp" && mv "$f.tmp" "$f"
 ```
 

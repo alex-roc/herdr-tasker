@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.5.0 — 2026-11-08
+
+### Changed
+- **What goes first is where you put it**: priorities (P1–P3) are gone. Drag a task onto another in
+  Up next, the Inbox, a project in Projects or a board column and it takes that place (a line shows
+  where it lands); from the Inbox onto Up next it's planned too. `t`, or *Move to the top* in a
+  task's menu, puts it first; new tasks go last. A file from before keeps its order; a task an agent
+  writes goes last, or first with `"priority": "high"`. Rows and cards lose the P chip.
+- The detail's **Activity** (every status change) is off by default: *Activity in the details* in the
+  settings shows it. How long the task has been in its status still shows.
+- New screenshots for the README and the website, without priorities and with the new setting.
+
 ## 1.4.0 — 2026-11-08
 
 ### New

@@ -1,13 +1,14 @@
 // The board: a tab with one column per status. Drag a card to another column
-// to change its status; click it to open it; right-click for its menu.
+// to change its status, onto another card to put it there; click it to open it;
+// right-click for its menu.
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { theme, setShared, run, shared, props } from "herdr";
 import { S } from "./strings.js";
-import { setStatus, kept } from "./lib/store.js";
-import { RANK, byUrgency, base, shortModel, issueLabel, isLater, laterLabel } from "./lib/util.js";
-import { statusIcon, taskMark, prioChip, dueChip, chip, iconButton, icon, agentFor, agentMark, programIcon } from "./lib/ui.js";
+import { setStatus, kept, moveTask } from "./lib/store.js";
+import { RANK, byRank, base, shortModel, issueLabel, isLater, laterLabel } from "./lib/util.js";
+import { statusIcon, taskMark, dueChip, chip, iconButton, icon, agentFor, agentMark, programIcon } from "./lib/ui.js";
 import { untrackedName } from "./lib/world.js";
 import { adopt, openBoard } from "./lib/actions.js";
 import { openDialog } from "./lib/open.js";
@@ -24,6 +25,7 @@ export const Board = {
     this.boardProject = this.fixedProject;
     this.pressed = null; // task id held down
     this.over = null; // column under the pointer while dragging
+    this.overCard = null; // card under it
     cx.timer.every(30000, (cx) => cx.notify());
   },
 
@@ -39,7 +41,7 @@ export const Board = {
     for (const c of COLUMNS) {
       cols[c].sort(c === "done"
         ? (a, b) => (b.t.done_at ?? 0) - (a.t.done_at ?? 0)
-        : (a, b) => (RANK[b.top] ?? 0) - (RANK[a.top] ?? 0) || byUrgency(a.t, b.t));
+        : (a, b) => byRank(a.t, b.t));
     }
     return cols;
   },
@@ -63,6 +65,7 @@ export const Board = {
     const task = from && this.store.task(from);
     this.pressed = null;
     this.over = null;
+    this.overCard = null;
     if (!task) return cx.notify();
     if (task.status !== status) {
       cx.spawn(async () => this.store.update((d) => { const t = d.tasks.find((y) => y.id === from); if (!t) return false; kept(t); setStatus(t, status); }));
@@ -73,13 +76,35 @@ export const Board = {
     cx.notify();
   },
 
-  card(t, x) {
+  // Released on a card: the dragged one takes its place (in its column, with its status).
+  dropOnCard(cx, x, ids) {
+    const from = this.pressed;
+    if (!from || from === x.t.id || String(from).startsWith("tab:")) return this.drop(cx, x.t.status);
+    cx.stop_propagation();
+    this.pressed = null;
+    this.over = null;
+    this.overCard = null;
+    const target = x.t.id, status = x.t.status;
+    cx.spawn(async () => this.store.update((d) => {
+      const t = d.tasks.find((y) => y.id === from);
+      if (!t) return false;
+      kept(t);
+      setStatus(t, status);
+      moveTask(d, from, ids, target);
+    }));
+    cx.notify();
+  },
+
+  card(t, x, ids = []) {
     const task = x.t;
     const e = [...x.agents].sort((a, b) => (RANK[b.top] ?? 0) - (RANK[a.top] ?? 0))[0];
     const info = e ? this.info.get(e.a.address) : null;
     const blocked = e?.top === "blocked";
     const selected = shared("tasker.selected") === task.id;
-    const lifted = this.pressed === task.id && this.over && this.over !== task.status;
+    const lifted = this.pressed === task.id && ((this.over && this.over !== task.status) || (this.overCard && this.overCard !== task.id));
+    // Another card held over this one: a line shows where it lands (below when it comes from above).
+    const target = Boolean(this.pressed) && !String(this.pressed).startsWith("tab:") && this.overCard === task.id && this.pressed !== task.id;
+    const below = target && ids.indexOf(this.pressed) >= 0 && ids.indexOf(this.pressed) < ids.indexOf(task.id);
     const meta = e ? [shortModel(info?.model), info?.effort, agentFor(e.top, this.sinceOf(e))].filter(Boolean).join(" · ") : null;
     const project = this.store.project(x.project);
     const due = task.status === "done" ? null : dueChip(t, task.due);
@@ -87,8 +112,16 @@ export const Board = {
       .border_1().border_color(blocked ? t.blocked : selected ? t.accent : t.border)
       .when(lifted, (el) => el.opacity(0.45))
       .when(!lifted && isLater(task), (el) => el.opacity(0.6))
+      .when(target && !below, (el) => el.border_t(3).border_color(t.accent))
+      .when(target && below, (el) => el.border_b(3).border_color(t.accent))
       .cursor_pointer().hover((s) => s.border_color(t.input))
-      .on_mouse_down("left", (_e, cx) => { this.pressed = task.id; this.over = task.status; cx.notify(); })
+      .on_mouse_down("left", (_e, cx) => { this.pressed = task.id; this.over = task.status; this.overCard = null; cx.notify(); })
+      .on_mouse_move((_e, cx) => {
+        if (!this.pressed) return;
+        cx.stop_propagation();
+        if (this.overCard !== task.id || this.over !== task.status) { this.overCard = task.id; this.over = task.status; cx.notify(); }
+      })
+      .on_mouse_up("left", (_e, cx) => this.dropOnCard(cx, x, ids))
       .on_mouse_down("right", (_e, cx) => {
         cx.stop_propagation();
         setShared("tasker.selected", task.id);
@@ -101,7 +134,6 @@ export const Board = {
       .when(blocked && Boolean(e?.report?.msg), (el) => el.child(div().text_size(11).text_color(t.blocked).child(e.report.msg.replace(/^answer:\s*/i, ""))))
       .when(!blocked && Boolean(meta), (el) => el.child(div().truncate().text_size(11).text_color(t.muted).child(meta)))
       .child(h_flex().gap(5).items_center().flex_wrap()
-        .child(prioChip(t, task.priority))
         .when(Boolean(due), (el) => el.child(due))
         .when(isLater(task), (el) => el.child(chip(t, S.laterUntil(laterLabel(task.snooze)), t.dim)))
         .when(Boolean(task.issue), (el) => el.child(chip(t, issueLabel(task.issue), t.dim)))
@@ -145,11 +177,12 @@ export const Board = {
   },
 
   column(t, status, list, wip) {
+    const ids = list.map((x) => x.t.id);
     const over = this.pressed && this.over === status;
     const full = status === "doing" && list.length > wip;
     return v_flex().id(`col-${status}`).flex_1().min_w(170).max_w(320).h_full().min_h(0).rounded(10)
       .bg(over ? t.selected : t.chrome).border_1().border_color(over ? t.accent : t.border)
-      .on_mouse_move((_e, cx) => { if (this.pressed && this.over !== status) { this.over = status; cx.notify(); } })
+      .on_mouse_move((_e, cx) => { if (this.pressed && (this.over !== status || this.overCard)) { this.over = status; this.overCard = null; cx.notify(); } })
       .on_mouse_up("left", (_e, cx) => this.drop(cx, status))
       .child(h_flex().px(12).h(38).flex_none().gap(7).items_center()
         .child(statusIcon(t, status, 14))
@@ -159,7 +192,7 @@ export const Board = {
         .when(["inbox", "next"].includes(status), (el) => el.child(iconButton(t, `col-add-${status}`, "plus", S.newTask,
           () => openDialog("task", { status, project: this.boardProject })))))
       .child(v_flex().id(`col-list-${status}`).flex_1().min_h(0).px(8).pb(8).gap(7).overflow_y_scrollbar()
-        .children(list.map((x) => this.card(t, x)))
+        .children(list.map((x) => this.card(t, x, ids)))
         .when(!list.length, (el) => el.child(div().h(56).rounded(8).border_1().border_color(over ? t.accent : t.border).flex().items_center().justify_center()
           .text_size(11).text_color(t.dim).child(S.emptyColumn))));
   },
@@ -184,7 +217,7 @@ export const Board = {
     };
     return v_flex().id("tasker-board").size_full().min_h(0).bg(t.canvas).text_color(t.foreground)
       // Released outside any column: the drag is off.
-      .on_mouse_up("left", (_e, cx) => { if (this.pressed) { this.pressed = null; this.over = null; cx.notify(); } })
+      .on_mouse_up("left", (_e, cx) => { if (this.pressed) { this.pressed = null; this.over = null; this.overCard = null; cx.notify(); } })
       .child(h_flex().px(14).h(44).flex_none().gap(6).items_center()
         .child(div().pr(8).text_size(14).font_semibold().child(S.board))
         .child(pill(null, S.allProjects))

@@ -7,11 +7,11 @@ import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui
 import { props, closeOverlay, theme, home, spaces, panes, shared, setShared, run, notify, knownAgents, terminals, layout, pickFolder } from "herdr";
 import { untrackedName } from "./lib/world.js";
 import { S } from "./strings.js";
-import { newTask, newProject, setStatus, kept } from "./lib/store.js";
-import { STATUSES, tilde, untilde, base, byUrgency, OPEN, parseDue, dueLabel, issueLabel, isLater, laterLabel, parseLater } from "./lib/util.js";
+import { newTask, newProject, setStatus, kept, toTop } from "./lib/store.js";
+import { STATUSES, tilde, untilde, base, byRank, OPEN, parseDue, dueLabel, issueLabel, isLater, laterLabel, parseLater } from "./lib/util.js";
 import { linearKey, linearIssues } from "./lib/linear.js";
 import { place, repoState } from "./lib/git.js";
-import { STATUS_ICON, button, chip, statusIcon, statusColor, prioColor, prioChip, icon } from "./lib/ui.js";
+import { STATUS_ICON, button, chip, statusIcon, statusColor, icon } from "./lib/ui.js";
 import { openDialog } from "./lib/open.js";
 import * as act from "./lib/actions.js";
 
@@ -119,7 +119,7 @@ export const Dialogs = {
   initTaskForm(cx, p) {
     const existing = p.task ? this.store.task(p.task) : null;
     this.form = existing ? { ...existing } : {
-      title: "", project: p.project ?? null, repo: p.repo ?? null, status: p.status ?? "next", priority: 2,
+      title: "", project: p.project ?? null, repo: p.repo ?? null, status: p.status ?? "next",
       due: null, estimate: null, next_step: "", notes: "",
     };
     this.isNew = !existing;
@@ -156,7 +156,7 @@ export const Dialogs = {
       let ok = false;
       try {
         ok = await this.store.update((d) => {
-          const fields = { title: f.title.trim(), project: f.project, repo: f.repo, priority: f.priority, due, estimate: (f.estimate ?? "").trim() || null, next_step: (f.next_step ?? "").trim(), notes: f.notes ?? "" };
+          const fields = { title: f.title.trim(), project: f.project, repo: f.repo, due, estimate: (f.estimate ?? "").trim() || null, next_step: (f.next_step ?? "").trim(), notes: f.notes ?? "" };
           if (!id) { const t = newTask(d, { ...fields, status: f.status }); setShared("tasker.selected", t.id); return; }
           const t = d.tasks.find((x) => x.id === id);
           if (!t) return false;
@@ -186,7 +186,6 @@ export const Dialogs = {
       .child(field(t, S.project, segmented(t, "proj", [[null, S.none], ...projects.map((p) => [p.id, p.name, projectColor(p)])], f.project, (v) => { f.project = v; })))
       .child(field(t, S.repo, segmented(t, "repo", [[null, S.none], ...repos.map((r) => [r, base(r)])], f.repo, (v) => { f.repo = v; })))
       .child(field(t, S.status, segmented(t, "st", STATUSES.map((s) => [s, S.statusLabel[s], statusColor(t, s), STATUS_ICON[s]]), f.status, (v) => { f.status = v; })))
-      .child(field(t, S.priority, segmented(t, "pr", [1, 2, 3].map((n) => [n, `${S.priorityLabel[n]} ${S.priorityHint[n]}`, prioColor(t, n)]), f.priority, (v) => { f.priority = v; })))
       .child(h_flex().gap(12)
         .child(div().flex_1().min_w(0).child(field(t, S.due, input(t, this.inputs.due, this.focusedField === "due", due === undefined), dueHint)))
         .child(div().w(110).child(field(t, S.estimate, input(t, this.inputs.estimate, this.focusedField === "estimate")))))
@@ -310,9 +309,7 @@ export const Dialogs = {
       .child(h_flex().px(8).py(4).gap(4).flex_wrap().children(STATUSES.map((s) => div().id(`s-${s}`).px(6).h(22).rounded(5).flex().items_center().cursor_pointer()
         .bg(task.status === s ? statusColor(t, s) + "26" : t.popover).text_color(statusColor(t, s)).hover((x) => x.bg(t.hover))
         .tooltip(S.statusLabel[s]).on_click(upd((x) => setStatus(x, s))).child(statusIcon(t, s, 13)))))
-      .child(h_flex().px(8).py(4).gap(4).children([1, 2, 3].map((n) => div().id(`p-${n}`).px(8).h(22).rounded(5).flex().items_center().cursor_pointer()
-        .bg(task.priority === n ? prioColor(t, n) + "26" : t.popover).text_color(prioColor(t, n)).hover((x) => x.bg(t.hover))
-        .tooltip(S.priorityHint[n]).on_click(upd((x) => { x.priority = n; })).child(S.priorityLabel[n]))))
+      .child(item("top", "arrow-up-to-line", S.moveTop, (_e, cx) => this.closeAfter(cx, () => this.store.update((d) => { const x = d.tasks.find((y) => y.id === task.id); if (!x) return false; kept(x); return toTop(d, task.id); })), "t"))
       .child(sep())
       // Later: put it off until a day (it comes back by itself), or someday.
       .child(h_flex().px(8).py(4).gap(4).flex_wrap().items_center()
@@ -537,12 +534,13 @@ export const Dialogs = {
     const setting = (label, hint, el) => v_flex().gap(6)
       .child(div().text_size(12).font_medium().child(label)).child(el)
       .child(div().text_size(11).text_color(t.dim).child(hint));
+    const onOff = (key) => h_flex().gap(4).children([[true, S.on], [false, S.off]].map(([v, label]) =>
+      h_flex().id(`${key}-${v}`).h(26).px(10).rounded(6).items_center().text_size(11.5).cursor_pointer()
+        .border_1().border_color(s[key] === v ? t.accent : t.input).bg(s[key] === v ? t.accent + "26" : t.background)
+        .hover((x) => x.bg(t.hover)).on_click(set({ [key]: v })).child(label)));
     return this.withFooter(t, v_flex().gap(14)
       .child(this.title(t, S.settingsTitle))
-      .child(setting(S.track, S.trackHint, h_flex().gap(4).children([[true, S.on], [false, S.off]].map(([v, label]) =>
-        h_flex().id(`track-${v}`).h(26).px(10).rounded(6).items_center().text_size(11.5).cursor_pointer()
-          .border_1().border_color(s.track === v ? t.accent : t.input).bg(s.track === v ? t.accent + "26" : t.background)
-          .hover((x) => x.bg(t.hover)).on_click(set({ track: v })).child(label)))))
+      .child(setting(S.track, S.trackHint, onOff("track")))
       .when(Boolean(lists), (el) => el.child(setting(S.listsLayout, S.listsLayoutHint, h_flex().gap(4).children([["tasker-sidebar", S.listsTabs], ["tasker-split", S.listsStacked]].map(([child, label]) => {
         const on = (lists.active ?? lists.children?.[0]?.id) === child;
         return h_flex().id(`lists-${child}`).h(26).px(10).rounded(6).items_center().text_size(11.5).cursor_pointer()
@@ -551,18 +549,10 @@ export const Dialogs = {
       })))))
       .child(setting(S.wipLimit, S.wipLimitHint, stepper("wip", s.wip, 1, 20, String(s.wip), "wip")))
       .child(setting(S.staleDays, S.staleDaysHint, stepper("stale", s.stale_days, 1, 60, S.days(s.stale_days), "stale_days")))
-      .child(setting(S.revive, S.reviveHint, h_flex().gap(4).children([[true, S.on], [false, S.off]].map(([v, label]) =>
-        h_flex().id(`rev-${v}`).h(26).px(10).rounded(6).items_center().text_size(11.5).cursor_pointer()
-          .border_1().border_color(s.revive === v ? t.accent : t.input).bg(s.revive === v ? t.accent + "26" : t.background)
-          .hover((x) => x.bg(t.hover)).on_click(set({ revive: v })).child(label)))))
-      .child(setting(S.reminders, S.remindersHint, h_flex().gap(4).children([[true, S.on], [false, S.off]].map(([v, label]) =>
-        h_flex().id(`rem-${v}`).h(26).px(10).rounded(6).items_center().text_size(11.5).cursor_pointer()
-          .border_1().border_color(s.reminders === v ? t.accent : t.input).bg(s.reminders === v ? t.accent + "26" : t.background)
-          .hover((x) => x.bg(t.hover)).on_click(set({ reminders: v })).child(label)))))
-      .child(setting(S.showUsage, S.showUsageHint, h_flex().gap(4).children([[true, S.on], [false, S.off]].map(([v, label]) =>
-        h_flex().id(`usage-${v}`).h(26).px(10).rounded(6).items_center().text_size(11.5).cursor_pointer()
-          .border_1().border_color(s.usage === v ? t.accent : t.input).bg(s.usage === v ? t.accent + "26" : t.background)
-          .hover((x) => x.bg(t.hover)).on_click(set({ usage: v })).child(label)))))
+      .child(setting(S.revive, S.reviveHint, onOff("revive")))
+      .child(setting(S.reminders, S.remindersHint, onOff("reminders")))
+      .child(setting(S.showActivity, S.showActivityHint, onOff("activity")))
+      .child(setting(S.showUsage, S.showUsageHint, onOff("usage")))
       .child(setting(S.defaultAgent, S.defaultAgentHint, this.agentList == null ? div().text_color(t.dim).child(S.loading)
         : h_flex().gap(4).flex_wrap().children([...agents, ...(known ? [] : [{ key: s.agent, name: s.agent, installed: false }])].map((a) => {
           const on = a.key === s.agent;
@@ -590,7 +580,7 @@ export const Dialogs = {
     const attach = Boolean(props()?.attach);
     return this.store.data.tasks.filter((x) => !x.deleted && !x.archived && (!attach || OPEN.has(x.status)))
       .filter((x) => words.every((w) => `${x.title} ${x.repo ?? ""} ${x.next_step ?? ""} ${projects.get(x.project) ?? ""} ${issueLabel(x.issue)}`.toLowerCase().includes(w)))
-      .sort((a, b) => (OPEN.has(a.status) ? 0 : 1) - (OPEN.has(b.status) ? 0 : 1) || byUrgency(a, b)).slice(0, 12);
+      .sort((a, b) => (OPEN.has(a.status) ? 0 : 1) - (OPEN.has(b.status) ? 0 : 1) || byRank(a, b)).slice(0, 12);
   },
 
   pickJump(id, cx) {
@@ -623,8 +613,7 @@ export const Dialogs = {
           .on_click((_e, cx) => this.pickJump(x.id, cx))
           .child(statusIcon(t, x.status, 13))
           .child(div().flex_1().truncate().child(x.title))
-          .when(Boolean(x.repo), (el) => el.child(div().text_size(11).text_color(t.dim).child(base(x.repo))))
-          .child(prioChip(t, x.priority))))
+          .when(Boolean(x.repo), (el) => el.child(div().text_size(11).text_color(t.dim).child(base(x.repo))))))
         .when(!list.length, (el) => el.child(div().p(8).text_color(t.dim).child(this.query ? S.noMatch(this.query) : S.noTasks))));
   },
 
@@ -678,9 +667,10 @@ export const Dialogs = {
           this.saving = true;
           cx.spawn(async () => {
             await this.store.update((d) => {
-              for (const i of chosen) {
+              // Most urgent first (Linear's priority), each after the last.
+              for (const i of [...chosen].sort((a, b) => (a.priority ?? 2) - (b.priority ?? 2))) {
                 newTask(d, { title: i.title, repo: p.repo ?? null, project: p.project ?? null, status: "inbox",
-                  priority: i.priority ?? 2, due: i.due ?? null,
+                  due: i.due ?? null,
                   issue: { source: i.source, number: i.number, url: i.url, body: (i.body ?? "").slice(0, 4000) } });
               }
             });

@@ -32,11 +32,19 @@ every task by status.
     for the whole project) and `ellipsis` (its menu). Dragging a project row onto another moves it
     there (dimmed while dragged; a 2px `accent` line above or below the target shows where it lands);
     the order is `projects` in tasks.json.
+  - **Order**: every task has a `rank` (lower first); Up next, the Inbox, each project's and
+    repository's tasks and every board column follow it (Projects: open tasks first). Dragging a task
+    row onto another in the same list (or between Inbox and Up next, which also changes its status)
+    puts it at that place: dimmed while dragged, a 2px `accent` line above the target (below when
+    it comes from above), no line where it can't land; the list's tasks share out the ranks they
+    had, so nothing outside it moves. `t` or *Move to the top* (arrow-up-to-line) puts it first. A
+    new task goes last; one written without a rank goes last, or first with `"priority": 1`/`"high"`
+    (a file from before ranks keeps its priority, due date, oldest order).
   - **Task row**: 16px mark (the lead agent's state as Herdr draws it: spinner, "!" on
     `blocked`+26 alpha, 7px dot `done`, ring `idle`; else the status icon: inbox, circle-dot,
     circle-play, circle-pause, eye, circle-check, circle-x), title (semibold when its agent is done),
-    repository name in Now, due chip ("2d late" on `blocked`, today/tomorrow on `ansi3`, else `dim`),
-    priority chip P1 `ansi1` / P2 `ansi3` / P3 `dim`. A second 11px line: the agent's question in
+    repository name in Now, due chip ("2d late" on `blocked`, today/tomorrow on `ansi3`, else `dim`).
+    A second 11px line: the agent's question in
     `blocked`, else "opus 5.5 · high · ctx 241k · working 4m" (or "finished 3m ago", "idle 1h"), else
     "Later · back fri" (title in `dim`) for a task put off, else "→ next step". Hover shows a play
     button on tasks without an agent. Selected row on `selected`.
@@ -53,7 +61,7 @@ every task by status.
 - **Right column `tasker-detail`, 360px, hidden until opened** (status-bar button, cmd-i, `i`,
   *Details*, or a card clicked on the board; selecting a task never opens it): header "Task" with pencil
   and ✕; title 15px with its status icon; repository, due chip, "est. 2h", issue link; a row of status
-  icons where only the current one shows its name, and P1–P3; actions (Start agent / Start in a
+  icons where only the current one shows its name; actions (Start agent / Start in a
   worktree, or Go to agent; with no agent and a remembered conversation, Resume agent first (rotate-ccw,
   tooltip "Continue its last Claude Code conversation (2h ago)"); Later… (moon) or Bring back with a
   "Later · back fri" chip; Mark done in Review; Show changes); sections in 10.5px uppercase `dim`:
@@ -61,8 +69,8 @@ every task by status.
   248k · turn 7 · working 1m", the pending question, sub-tasks and sub-agents as a tree), Screen
   (last 8 non-empty lines of the agent's terminal), Changes (branch, "N files +add −del", PR chip
   that opens the PR, checks chip, "Ask for a pull request", "Send failed checks"), Message the agent
-  (textarea + Send), Time ("Doing for 2h", "agents worked 47m", "created 4d ago"), Activity
-  (history, newest first).
+  (textarea + Send), Time ("Doing for 2h", "agents worked 47m", "created 4d ago"), and with
+  *Activity in the details* on (off by default) Activity (history, newest first).
 - **Board** (a tab whose only pane is the mod with `role: "board"`, named "Board"; a project's own
   board is another tab, "Board · <project>", with `project: <id>` in its props, its tasks and agents
   only. Every board's header has the pills All + each project (the current one on `selected`); a pill
@@ -74,7 +82,9 @@ every task by status.
   selected: mark + title, next step, the question or "model · effort · working 4m", chips (P, due,
   #issue, branch) and the repository. Empty column: a 56px "Nothing here" box. Done shows the last 7
   days. Dragging dims the card and highlights the column under the pointer (`selected` + `accent`
-  border); releasing there sets the status. When agents in no task exist, a **No task** lane (190–260px,
+  border); releasing there sets the status. Held over a card, a 3px `accent` line shows where it
+  lands (below when it comes from above in the same column); releasing there sets that column's
+  status and puts it at that place. When agents in no task exist, a **No task** lane (190–260px,
   `canvas`, bot icon, a one-line hint) comes first with a card per agent (mark, name, model · effort ·
   time, repository); dropping one on a column makes it a task with that status, releasing it on its
   own lane goes to the agent.
@@ -104,7 +114,7 @@ every task by status.
   (`globalThis`) so two lists on screen record each change once.
 - Clicking a task selects it and focuses its agent's pane (else a terminal of its tabs); Enter does
   the same, and opens the task form when it has neither.
-  Right-click: a task's menu (details, edit, start, start in worktree, status icons, priority, Later:
+  Right-click: a task's menu (details, edit, start, start in worktree, status icons, move to the top, Later:
   Tomorrow / Next week / Someday / Pick…, Bring back, archive, delete in `blocked`); a repository's
   menu (new terminal, "New <agent> here" for each installed agent, close repo, new task, import
   issues, its project); a project's menu (header: color, name, "2 repositories"; Board, New task…;
@@ -131,11 +141,11 @@ every task by status.
   is tied to the task and its terminals labelled `tasker.task=<id>`. In a worktree: `git worktree add
   -b task/<slug> ~/.herdr/worktrees/<repo>/<slug>` first (`<slug>-<id end>` if another task has it).
 - Task form: title (required: Save is dimmed without it), project, repository (projects' repos and
-  open git repositories), status, priority (P1 High, P2 Normal, P3 Low), due (today, tomorrow, fri,
+  open git repositories), status, due (today, tomorrow, fri,
   +3d, 2w, 12-24, 2026-12-24, with "in 3d · 2026-11-10" beside the label, red border when not
   understood), estimate, next step, notes. Enter saves once.
 - Settings: Now and Projects (Tabs / Stacked, when the layout has `tasker-lists`), steppers for the
-  Doing limit (1–20) and stalled days (1–60), Reminders On/Off, Plan usage On/Off (off by default),
+  Doing limit (1–20) and stalled days (1–60), Reminders On/Off, Activity in the details On/Off (off by default), Plan usage On/Off (off by default),
   and the installed agents as pills (the chosen one stays even if not installed).
 - Resume: while a local Claude Code or Codex agent runs, its session id and folder are kept on the
   task (`sessions`, newest 5). Resume runs the agent's `run` + `--resume <id>` (Codex: `resume <id>`)
@@ -158,10 +168,10 @@ every task by status.
   window in front, a change redrawing every copy: ◐◓◑◒ or braille first is working, ✳ idle, else
   `unknown` ("running 4m"). Its session comes from `~/.claude/projects/<folder>/<attach id>*.jsonl`.
 - Import issues: GitHub (`gh issue list`) or Linear (GraphQL `viewer.assignedIssues`, not completed or
-  canceled, with a personal API key from `$LINEAR_API_KEY` or `data/tasker/linear-key`; Linear
-  priority 1–2 → P1, 3 → P2, 4 → P3; due date kept). Issues already imported (same URL) are hidden.
+  canceled, with a personal API key from `$LINEAR_API_KEY` or `data/tasker/linear-key`; imported
+  most urgent first by Linear's priority, due date kept). Issues already imported (same URL) are hidden.
   Linear issues show as "ENG-12", GitHub ones as "#12".
-- Keys in the list: j/k, arrows, enter, space, 1–3, n, e, l, w, r, z (later), i (details), /, tab
+- Keys in the list: j/k, arrows, enter, space, t (to the top), n, e, l, w, r, z (later), i (details), /, tab
   (with two lists: to the other one). Layout keys: cmd-j, cmd-k,
   cmd-shift-n, cmd-shift-o, cmd-i, cmd-shift-b. Mod commands: `new`, `jump`, `board`, `view`,
   `focus`, `settings`, `linear`, `select:<id>` (selects it and opens the detail: scripts and

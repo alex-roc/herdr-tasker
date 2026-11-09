@@ -3,7 +3,7 @@
 
 import { place } from "./git.js";
 import { report, word } from "./agentinfo.js";
-import { tilde, untilde, base, OPEN, RANK, byUrgency, isLater, commonDir } from "./util.js";
+import { tilde, untilde, base, OPEN, RANK, byRank, isLater, commonDir } from "./util.js";
 import { S } from "../strings.js";
 
 // The state an agent shows in its terminal's title when it reports none to Herdr: Claude
@@ -138,11 +138,11 @@ export function nowView(w, data) {
   const review = take(open.filter((x) => free(x) && (x.t.status === "review" || (x.top === "done" && x.t.status === "doing"))));
   const working = take(open.filter((x) => !used.has(x.t.id) && x.top === "working"));
   const stalled = take(open.filter((x) => free(x) && ["doing", "waiting"].includes(x.t.status) && now - (x.t.updated ?? 0) > staleMs));
-  const next = open.filter((x) => free(x) && ["next", "doing", "waiting"].includes(x.t.status)).sort((a, b) => byUrgency(a.t, b.t));
-  const inbox = open.filter((x) => free(x) && x.t.status === "inbox").sort((a, b) => byUrgency(a.t, b.t));
+  const next = open.filter((x) => free(x) && ["next", "doing", "waiting"].includes(x.t.status)).sort((a, b) => byRank(a.t, b.t));
+  const inbox = open.filter((x) => free(x) && x.t.status === "inbox").sort((a, b) => byRank(a.t, b.t));
   // Soonest back first; someday last.
   const later = open.filter((x) => !used.has(x.t.id) && isLater(x.t))
-    .sort((a, b) => (a.t.snooze === "someday") - (b.t.snooze === "someday") || String(a.t.snooze).localeCompare(String(b.t.snooze)) || byUrgency(a.t, b.t));
+    .sort((a, b) => (a.t.snooze === "someday") - (b.t.snooze === "someday") || String(a.t.snooze).localeCompare(String(b.t.snooze)) || byRank(a.t, b.t));
   const loose = (s) => w.untracked.filter((u) => u.top === s);
   // Agents in no task that need nothing now: the "Not in a task" inbox.
   const idle = w.untracked.filter((u) => u.agents.length && !["blocked", "done", "working"].includes(u.top));
@@ -183,7 +183,8 @@ export function projectTree(w, data, h, filters) {
     if (projects.some((x) => x.repos.has(s.key))) continue;
     orphan.repos.set(s.key, repoNode(s.key));
   }
-  const order = (list) => list.sort((a, b) => (RANK[b.top] ?? 0) - (RANK[a.top] ?? 0) || (OPEN.has(a.t.status) ? 0 : 1) - (OPEN.has(b.t.status) ? 0 : 1) || byUrgency(a.t, b.t));
+  // Open first, then the order you set (dragging a row moves it there).
+  const order = (list) => list.sort((a, b) => (OPEN.has(a.t.status) ? 0 : 1) - (OPEN.has(b.t.status) ? 0 : 1) || byRank(a.t, b.t));
   for (const x of [...projects, orphan]) {
     x.loose = order(x.loose);
     for (const r of x.repos.values()) r.tasks = order(r.tasks);

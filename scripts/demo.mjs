@@ -80,7 +80,7 @@ function setup() {
   if (existsSync(FILE) && !existsSync(BACKUP)) copyFileSync(FILE, BACKUP);
   const now = Date.now();
   let n = 0;
-  const task = (f) => ({ id: `demo${++n}`, project: null, repo: null, status: "next", priority: 2, due: null, estimate: null, next_step: "", notes: "",
+  const task = (f) => ({ id: `demo${++n}`, project: null, repo: null, status: "next", rank: n, due: null, estimate: null, next_step: "", notes: "",
     issue: null, worktree: null, branch: null, tabs: [], created: now - (3 + n) * DAY, updated: now - DAY, done_at: null, agent_ms: 0,
     history: [{ s: "inbox", at: now - (3 + n) * DAY }, { s: f.status ?? "next", at: f.updated ?? now - DAY }], ...f });
   const data = {
@@ -92,21 +92,21 @@ function setup() {
       { id: "book", name: "Handbook", color: "ansi5", repos: [book] },
     ],
     tasks: [
-      task({ title: "Add OAuth login", project: "acme", repo: web, status: "doing", priority: 1, due: day(2), next_step: "Wire the callback route", tabs: [w1.tab], agent_ms: 47 * 60000, estimate: "1d" }),
+      task({ title: "Add OAuth login", project: "acme", repo: web, status: "doing", due: day(2), next_step: "Wire the callback route", tabs: [w1.tab], agent_ms: 47 * 60000, estimate: "1d" }),
       task({ title: "Pick a database for sessions", project: "acme", repo: web, status: "doing", tabs: [w2.tab], agent_ms: 12 * 60000 }),
-      task({ title: "Rate-limit the public API", project: "acme", repo: api, status: "review", priority: 1, tabs: [a1.tab], agent_ms: 33 * 60000,
+      task({ title: "Rate-limit the public API", project: "acme", repo: api, status: "review", tabs: [a1.tab], agent_ms: 33 * 60000,
         issue: { number: 31, url: "https://github.com/example/acme-api/issues/31", body: "" } }),
       // Its agent ran yesterday and is gone: the detail offers Resume agent.
-      task({ title: "Fix the flaky checkout test", project: "acme", repo: web, priority: 1, due: day(0), next_step: "Reproduce with --repeat 50",
+      task({ title: "Fix the flaky checkout test", project: "acme", repo: web, due: day(0), next_step: "Reproduce with --repeat 50",
         sessions: [{ app: "claude", id: "3f2c9a1e-5b7d-4e8a-9c0f-1a2b3c4d5e6f", cwd: web, at: now - 20 * 3600000 }], agent_ms: 25 * 60000 }),
-      task({ title: "Write the onboarding guide", project: "book", repo: book, priority: 2, due: day(4), estimate: "3h" }),
-      task({ title: "Upgrade to Node 24", project: "acme", repo: api, priority: 3 }),
+      task({ title: "Write the onboarding guide", project: "book", repo: book, due: day(4), estimate: "3h" }),
+      task({ title: "Upgrade to Node 24", project: "acme", repo: api, rank: 99 }),
       task({ title: "Pricing page copy", project: "acme", repo: web, status: "waiting", next_step: "Waiting on design", updated: now - 5 * DAY }),
-      task({ title: "Try a dark theme for the docs", project: "book", status: "inbox", priority: 3, snooze: day(3) }),
+      task({ title: "Try a dark theme for the docs", project: "book", status: "inbox", snooze: day(3) }),
       // Put off: back in three days, and someday.
-      task({ title: "Move the docs to MDX", project: "book", repo: book, status: "next", priority: 3, snooze: "someday" }),
+      task({ title: "Move the docs to MDX", project: "book", repo: book, status: "next", snooze: "someday" }),
       // A task for the whole project: its agent works across acme-web and acme-api.
-      task({ title: "Share one auth client across web and api", project: "acme", priority: 2, next_step: "List where each repo calls auth" }),
+      task({ title: "Share one auth client across web and api", project: "acme", next_step: "List where each repo calls auth" }),
       task({ title: "Import the old wiki", project: "book", repo: book, status: "inbox" }),
       task({ title: "Ship the v1.4 changelog", project: "book", repo: book, status: "done", done_at: now - 2 * 3600000 }),
       task({ title: "Rotate the API keys", project: "acme", repo: api, status: "done", done_at: now - 2 * DAY }),

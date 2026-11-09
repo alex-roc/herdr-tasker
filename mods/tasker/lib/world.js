@@ -16,6 +16,13 @@ export function titleState(title) {
   return null;
 }
 
+// An agent in front of a terminal: Herdr's program table says so, or its command is one.
+export const agentInFront = (t) => Boolean(t?.program?.agent) || /(^|\/)(claude|codex)$/.test(t?.foreground?.argv?.[0] ?? "");
+
+// The terminal's own shell is in front again: the agent it ran has quit (or never ran). A remote
+// terminal, or one that doesn't say, counts as still running its agent.
+export const shellOnly = (t) => Boolean(t?.foreground) && t.pid != null && t.foreground.pid === t.pid && !agentInFront(t);
+
 // Live sub-agents of `addr`, depth first.
 function kids(ts, addr, depth = 1) {
   return ts.filter((k) => k.parent === addr && k.state === "live")
@@ -41,6 +48,8 @@ export function build({ data, sp, ps, ag, ts, repos, h, titles = null }) {
   const byTab = new Map();
   for (const a of ag) {
     const term = termBy.get(a.address) ?? null;
+    // Herdr can keep listing an agent that quit: with its shell back in front, it's none.
+    if (shellOnly(term)) continue;
     const entry = { a, term, status: a.status, report: report(term), subs: kids(ts, a.address) };
     for (const k of entry.subs) {
       const s = agentStatus.get(k.term.address) ?? word(k.term);
@@ -60,7 +69,7 @@ export function build({ data, sp, ps, ag, ts, repos, h, titles = null }) {
     // What's in front decides: a shell is none (its `app` can linger from an agent that quit);
     // otherwise an agent by Herdr's table, its report, or its program (claude, codex).
     const prog = p.program ?? term?.program;
-    if (!prog || prog.shell || !(prog.agent || p.app || ["claude", "codex"].includes(prog.key))) continue;
+    if (!prog || prog.shell || shellOnly(term) || !(prog.agent || p.app || ["claude", "codex"].includes(prog.key))) continue;
     // Its state from its title (working, idle): as given, else as read from the core
     // (Herdr hands mods the title without the mark), else unknown.
     const status = titleState(term?.title ?? p.title) ?? titles?.get(p.terminal) ?? "unknown";

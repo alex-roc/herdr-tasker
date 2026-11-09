@@ -599,6 +599,45 @@ test("every agent's tab a task: light ones follow their agent, vanish with their
   assert.equal(v.store.task(id), null, "gone");
 });
 
+test("a light task goes when its agent quits, its tab still open; after a restart it waits for the agent", async () => {
+  world({ settings: { track: true } });
+  H.props = { role: "sidebar" };
+  const v = new Tasker();
+  v.init(H.props, cx());
+  await until(() => v.store.loaded);
+  v.render(cx());
+  await settle();
+  await v.store.load();
+  const id = v.store.data.tasks.find((t) => t.auto).id;
+  const t4 = H.terminals.find((t) => t.address === "t4");
+  // A restart: another shell, the agent being resumed in it a moment later. Kept meanwhile.
+  t4.pid = 4004;
+  t4.foreground = { pid: 4004, argv: ["/bin/zsh", "-l"], name: "zsh" };
+  v.render(cx());
+  await settle();
+  assert.ok(globalThis.__tasker.books.info.gone[id], "counting");
+  t4.foreground = { pid: 4010, argv: ["claude"], name: "2.1.0" };
+  v.render(cx());
+  await settle();
+  assert.ok(!globalThis.__tasker.books.info.gone[id], "its agent is back: not counting");
+  // Quit by hand (/exit): the shell is in front again and stays.
+  t4.foreground = { pid: 4004, argv: ["/bin/zsh", "-l"], name: "zsh" };
+  v.render(cx());
+  await settle();
+  assert.ok(v.store.task(id), "not at once");
+  globalThis.__tasker.books.info.gone[id] -= 31000;
+  v.render(cx());
+  await settle();
+  assert.equal(v.store.task(id), null, "gone, its tab still open");
+  assert.ok(H.spaces[0].tabs.some((t) => t.id === "tb4"));
+  // Herdr still lists the agent that quit: not taken for a new one.
+  assert.ok(H.agents.some((a) => a.address === "t4"));
+  v.render(cx());
+  await settle();
+  await v.store.load();
+  assert.ok(!v.store.data.tasks.some((t) => t.tabs.includes("tb4")), "no new light task for a shell");
+});
+
 test("a light task you touch is yours: it keeps its name and stays when its tab closes", async () => {
   world({ settings: { track: true } });
   H.props = { role: "sidebar" };

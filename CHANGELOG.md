@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.1 — 2026-11-08
+
+### Fixed
+- A terminal's task stayed in Now after you quit its agent (`/exit`), its tab still open: a light
+  task now goes 30 seconds after its agent quits, not only when its tab closes. After a restart the
+  agent is resumed first, and its task comes back with it. An agent Herdr still lists after it quit
+  (its shell back in front) no longer counts as one anywhere, so the shell isn't made a task again.
+
 ## 1.5.0 — 2026-11-08
 
 ### Changed

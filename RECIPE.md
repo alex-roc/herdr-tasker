@@ -153,8 +153,10 @@ every task by status.
 - Light tasks (setting `track`, on by default): the bookkeeping adopts every tab with an agent and no
   task as a task with `auto: true` (status from its agent: Doing, Review, else Next; a tab opened for a
   project goes to that project with no repository). While `auto`, its title follows the agent's own
-  title, and a minute after its tab is gone from every space (not counting away machines or no spaces
-  at all) it's removed. Any change the person makes (form, menu, keys, detail, board, Later) drops
+  title, and it's removed 30 s after its agent quits (no agent left in its tabs: Herdr's listed agents
+  whose terminal has its own shell in front again, `shellOnly` in `lib/world.js`, don't count) or a
+  minute after its tab is gone from every space (not counting away machines or no spaces at all).
+  After a restart the resume typed by `lib/revive.js` brings the agent back before that. Any change the person makes (form, menu, keys, detail, board, Later) drops
   `auto` (`kept()`). A tab whose task was deleted isn't adopted again by itself.
 - Agents after a restart (`lib/revive.js`, setting `revive`, on by default): for each local terminal
   with a Claude Code or Codex agent in front and a transcript, `data/tasker/terminals.json` keeps

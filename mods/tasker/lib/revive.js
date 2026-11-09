@@ -10,6 +10,7 @@ import { readTextFile, writeTextFile, exec, notify } from "herdr";
 import { DIR } from "./store.js";
 import { sharedCache } from "./cache.js";
 import { resumeArgv } from "./actions.js";
+import { agentInFront, shellOnly } from "./world.js";
 import { S } from "../strings.js";
 
 export const FILE = () => `${DIR()}/terminals.json`;
@@ -17,8 +18,6 @@ const KEEP_DAYS = 14;
 const QUIT_MS = 10000;
 const quote = (s) => `'${String(s).replace(/'/g, "'\\''")}'`;
 
-// An agent in front of the terminal: what Herdr's program table says, else its command.
-const agentInFront = (t) => Boolean(t.program?.agent) || /(^|\/)(claude|codex)$/.test(t.foreground?.argv?.[0] ?? "");
 
 // What gets typed: back to the conversation's folder, then the agent's resume.
 export async function resumeLine(r) {
@@ -46,7 +45,7 @@ export class Revive {
       if (t.pid === r.pid) {
         // The same shell, itself in front for a while: the agent was quit by hand, so it isn't
         // one to bring back. (Right after a crash the old pid lingers with nothing in front.)
-        if (t.foreground?.pid === t.pid && !agentInFront(t)) {
+        if (shellOnly(t)) {
           r.quit ??= now;
           if (now - r.quit > QUIT_MS) { delete c.recs[addr]; dirty = true; }
         } else delete r.quit;

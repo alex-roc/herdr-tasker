@@ -62,7 +62,8 @@ comes back with a notification. Once a day, a notification also tells you what's
 automatically*, on by default): a light one, named after what the agent calls its work, Doing while it
 works and in Review when it's done, on the board and in Projects like any other. Put it off, give it a
 note, drag it to another place: it's yours from then on. A light one you never touched goes
-away when you close its tab. So you can work only with terminals and agents and still get the list,
+away when its agent quits (30 seconds after, the tab can stay open as a plain shell) or you close its
+tab; after a restart its agent comes back by itself, and the task with it. So you can work only with terminals and agents and still get the list,
 the board, Later, the reminders and the resume after a restart; and plan tasks with details (next
 step, notes, due date, issues, a worktree) when you want them. Shells aren't tasks.
 

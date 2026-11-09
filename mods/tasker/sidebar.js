@@ -16,6 +16,9 @@ import { Revive } from "./lib/revive.js";
 import { openDialog } from "./lib/open.js";
 import { projectColor } from "./dialogs.js";
 
+// A light task whose agent quit goes this long after (time for an agent to come back by itself
+// after a restart, or for you to start it again in the same tab).
+const QUIT_MS = 30000;
 const lead = (x) => [...(x.agents ?? [])].sort((a, b) => (RANK[b.top] ?? 0) - (RANK[a.top] ?? 0))[0] ?? null;
 
 export const Sidebar = {
@@ -223,7 +226,9 @@ export const Sidebar = {
   },
 
   // Every agent's tab a task (setting `track`): a light one (`auto`) from its start, named after
-  // its agent and gone a minute after its tab closes, until the person changes anything on it.
+  // its agent, until the person changes anything on it. It is its agent: it goes when the agent
+  // quits (its shell back in front, the tab still open) or its tab closes. After a restart the
+  // agent comes back by itself (lib/revive.js) before that, and so does the task.
   follow(cx, w, ops, now) {
     if (this.store.data.settings.track === false) return;
     const adopting = (this.books.adopting ??= {});
@@ -238,10 +243,11 @@ export const Sidebar = {
       if (!x.t.auto || x.t.deleted) { delete gone[x.t.id]; continue; }
       const name = x.agents.map(agentTitle).find(Boolean);
       if (name && name !== x.t.title) ops.push((d) => { const y = d.tasks.find((z) => z.id === x.t.id); if (y?.auto) y.title = name; });
-      // Its tab closed (and not because Herdr is still bringing spaces back, or a machine is away).
-      if (x.live.length || !anySpace || x.tabs.some((tab) => tab.includes("/"))) { delete gone[x.t.id]; continue; }
+      // Its tab closed, or its agent quit (and not because Herdr is still bringing spaces back,
+      // or a machine is away).
+      if ((x.live.length && x.agents.length) || !anySpace || x.tabs.some((tab) => tab.includes("/"))) { delete gone[x.t.id]; continue; }
       gone[x.t.id] ??= now;
-      if (now - gone[x.t.id] > 60000) {
+      if (now - gone[x.t.id] > (x.live.length ? QUIT_MS : 60000)) {
         delete gone[x.t.id];
         ops.push((d) => { d.tasks = d.tasks.filter((y) => !(y.id === x.t.id && y.auto)); });
       }

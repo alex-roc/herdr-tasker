@@ -80,7 +80,8 @@ task, so they're neither tracked as light tasks nor drawn; its agents' addresses
 (find one by its tab's name in `herdr-app ls`).
 
 - Bring the window to the front first (`osascript -e 'tell application "Herdr" to activate'`) or the
-  frame is stale; two identical shots mean it was. Close a stray popup with `herdr-app do overlay.close`.
+  frame is stale; two identical shots mean it was. That takes whoever uses the Mac to Herdr's desktop:
+  say so first and take every shot in one go; to check behaviour, read files instead (`tasks.json`). Close a stray popup with `herdr-app do overlay.close`.
 - Drive it with commands: `tasker.view`, `tasker.select:<id>` (opens the detail), `tasker.board`,
   `tasker.new`, `tasker.settings`, `tasker.jump`, `layout.select`/`layout.hide`, `pane.focus {terminal}`.
 - `preview.png`, `site/img/overview.png` and `board.png`: the whole frame at half size. Lists: x 0–660
